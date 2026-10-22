@@ -33,8 +33,13 @@ import androidx.compose.material.icons.automirrored.filled.ScreenShare
 import androidx.compose.material.icons.automirrored.filled.StopScreenShare
 import androidx.compose.material.icons.automirrored.filled.VolumeOff
 import androidx.compose.material.icons.automirrored.filled.VolumeUp
+import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.MicOff
+import androidx.compose.material.icons.filled.RecordVoiceOver
+import androidx.compose.material.icons.filled.Stop
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
@@ -65,6 +70,8 @@ import com.example.ui.theme.RoseSecondary
 @Composable
 fun LiveAnimeVoiceScreen(
     uiState: MainUiState,
+    onToggleAssistantMode: () -> Unit,
+    onStopAssistantMode: () -> Unit,
     onToggleMic: () -> Unit,
     onToggleVoice: () -> Unit,
     onSendQuickCommand: (String) -> Unit,
@@ -75,21 +82,21 @@ fun LiveAnimeVoiceScreen(
 ) {
     val infiniteTransition = rememberInfiniteTransition(label = "voice_ui_effects")
 
-    val micPulse by infiniteTransition.animateFloat(
+    val pulseScale by infiniteTransition.animateFloat(
         initialValue = 1.0f,
-        targetValue = 1.25f,
+        targetValue = 1.08f,
         animationSpec = infiniteRepeatable(
-            animation = tween(650, easing = FastOutSlowInEasing),
+            animation = tween(700, easing = FastOutSlowInEasing),
             repeatMode = RepeatMode.Reverse
         ),
-        label = "mic_pulse"
+        label = "pulse_scale"
     )
 
     val glowAlpha by infiniteTransition.animateFloat(
-        initialValue = 0.3f,
-        targetValue = 0.7f,
+        initialValue = 0.35f,
+        targetValue = 0.85f,
         animationSpec = infiniteRepeatable(
-            animation = tween(1500, easing = LinearEasing),
+            animation = tween(1200, easing = LinearEasing),
             repeatMode = RepeatMode.Reverse
         ),
         label = "glow_alpha"
@@ -97,14 +104,14 @@ fun LiveAnimeVoiceScreen(
 
     val latestGirlfriendMessage = uiState.messages.lastOrNull {
         it.sender == com.example.data.MessageSender.GIRLFRIEND
-    }?.text ?: "Hey ${uiState.profile.userNickname}! I'm listening. Ask me to open WhatsApp, Free Fire, or anything! ❤️"
+    }?.text ?: "Hey ${uiState.profile.userNickname}! Tap 'Activate Assistant' to talk to me hands-free! ❤️"
 
     Box(
         modifier = modifier
             .fillMaxSize()
             .background(RoseDarkBackground)
     ) {
-        // Anime Girlfriend Character with natural body swaying physics and realistic talking mouth ("hot")
+        // Anime Girlfriend Character with natural physics body swaying & realistic lip-sync mouth
         AnimatedGirlfriendCharacter(
             isSpeaking = uiState.isSpeaking,
             isListening = uiState.isListening,
@@ -125,7 +132,10 @@ fun LiveAnimeVoiceScreen(
             Surface(
                 shape = RoundedCornerShape(20.dp),
                 color = Color.Black.copy(alpha = 0.65f),
-                border = androidx.compose.foundation.BorderStroke(1.dp, RosePrimary.copy(alpha = 0.5f))
+                border = androidx.compose.foundation.BorderStroke(
+                    1.dp,
+                    if (uiState.isAssistantModeActive) Color(0xFF4CAF50).copy(alpha = glowAlpha) else RosePrimary.copy(alpha = 0.5f)
+                )
             ) {
                 Row(
                     modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
@@ -135,11 +145,25 @@ fun LiveAnimeVoiceScreen(
                         modifier = Modifier
                             .size(10.dp)
                             .clip(CircleShape)
-                            .background(if (uiState.isListening) HeartRed else Color(0xFF4CAF50))
+                            .background(
+                                when {
+                                    uiState.isAssistantModeActive && uiState.isListening -> HeartRed
+                                    uiState.isAssistantModeActive -> Color(0xFF4CAF50)
+                                    uiState.isListening -> HeartRed
+                                    else -> Color(0xFF9E9E9E)
+                                }
+                            )
                     )
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(
-                        text = if (uiState.isListening) "Listening..." else if (uiState.isSpeaking) "Speaking 💋" else "Live Aria ❤️",
+                        text = when {
+                            uiState.isAssistantModeActive && uiState.isListening -> "Listening... 🎙️"
+                            uiState.isAssistantModeActive && uiState.isSpeaking -> "Speaking 💋"
+                            uiState.isAssistantModeActive -> "Assistant Active 🟢"
+                            uiState.isSpeaking -> "Speaking 💋"
+                            uiState.isListening -> "Listening... 🎙️"
+                            else -> "Aria AI 🌸"
+                        },
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Bold,
                         color = Color.White
@@ -147,7 +171,7 @@ fun LiveAnimeVoiceScreen(
                 }
             }
 
-            // Screen Share On/Off Toggle Button (Requested by User)
+            // Screen Share On/Off Toggle Button
             Surface(
                 shape = RoundedCornerShape(20.dp),
                 color = if (isScreenShareActive) HeartRed.copy(alpha = 0.85f) else Color.Black.copy(alpha = 0.65f),
@@ -195,7 +219,7 @@ fun LiveAnimeVoiceScreen(
             }
         }
 
-        // Bottom Section: Dialogue Subtitles + Quick Action Chips + Giant Voice Mic Button
+        // Bottom Section: Dialogue Subtitles + Quick Action Chips + Activate Assistant Hero Control
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -210,7 +234,7 @@ fun LiveAnimeVoiceScreen(
                     .testTag("live_dialogue_card"),
                 shape = RoundedCornerShape(20.dp),
                 colors = CardDefaults.cardColors(
-                    containerColor = Color.Black.copy(alpha = 0.76f)
+                    containerColor = Color.Black.copy(alpha = 0.78f)
                 ),
                 border = androidx.compose.foundation.BorderStroke(
                     1.dp,
@@ -253,7 +277,7 @@ fun LiveAnimeVoiceScreen(
 
             Spacer(modifier = Modifier.height(10.dp))
 
-            // Quick Voice Action Chips: Games, WhatsApp, Calls, Apps
+            // Quick Voice Action Chips (including battery, time, flashlight, apps, games)
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -261,6 +285,9 @@ fun LiveAnimeVoiceScreen(
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 val chips = listOf(
+                    "🔋 Battery kitni hai?",
+                    "⏰ Time kya hua?",
+                    "🔦 Flashlight on/off",
                     "🎮 Open Free Fire",
                     "🎯 Open BGMI",
                     "💬 Open WhatsApp",
@@ -268,7 +295,6 @@ fun LiveAnimeVoiceScreen(
                     "📸 Post Insta Story",
                     "🏃 Open Subway Surfers",
                     "📞 Call someone",
-                    "⏰ Set 7 AM Alarm",
                     "📷 Open Camera"
                 )
                 chips.forEach { chipText ->
@@ -293,62 +319,162 @@ fun LiveAnimeVoiceScreen(
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            // Giant Prominent Glowing Mic / Talk Button
-            Box(
-                modifier = Modifier
-                    .size(92.dp)
-                    .clickable(onClick = onToggleMic)
-                    .testTag("live_mic_giant_btn"),
-                contentAlignment = Alignment.Center
-            ) {
-                if (uiState.isListening) {
-                    Box(
+            // Continuous Hands-Free Assistant Mode Controls (Requested by User)
+            if (uiState.isAssistantModeActive) {
+                // ACTIVE STATE: Assistant is hands-free, user can talk without pressing repeatedly
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    // Pulsing Status banner
+                    Row(
                         modifier = Modifier
-                            .size(90.dp)
-                            .scale(micPulse)
-                            .clip(CircleShape)
-                            .background(HeartRed.copy(alpha = 0.35f))
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(Color(0xFF1B5E20).copy(alpha = 0.75f))
+                            .border(1.dp, Color(0xFF4CAF50).copy(alpha = glowAlpha), RoundedCornerShape(14.dp))
+                            .padding(horizontal = 14.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(10.dp)
+                                .clip(CircleShape)
+                                .background(Color(0xFF69F0AE))
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = if (uiState.isSpeaking) "Aria is answering you... 💋" else "Hands-Free Voice Active: Speak naturally! 🎙️",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    // Prominent Stop Assistant Button
+                    Button(
+                        onClick = onStopAssistantMode,
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = HeartRed,
+                            contentColor = Color.White
+                        ),
+                        shape = RoundedCornerShape(26.dp),
+                        modifier = Modifier
+                            .fillMaxWidth(0.85f)
+                            .height(54.dp)
+                            .scale(pulseScale)
+                            .testTag("btn_stop_assistant")
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Stop,
+                            contentDescription = "Stop Assistant",
+                            modifier = Modifier.size(24.dp)
+                        )
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Text(
+                            text = "STOP ASSISTANT ⏹️",
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            letterSpacing = 0.5.sp
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(4.dp))
+
+                    Text(
+                        text = "Or say 'Stop' / 'Band karo' to pause voice assistant",
+                        fontSize = 11.sp,
+                        color = Color.White.copy(alpha = 0.7f),
+                        textAlign = TextAlign.Center
                     )
                 }
-
-                Box(
-                    modifier = Modifier
-                        .size(76.dp)
-                        .clip(CircleShape)
-                        .background(
-                            Brush.linearGradient(
-                                colors = if (uiState.isListening) {
-                                    listOf(HeartRed, Color(0xFFFF5252))
-                                } else {
-                                    listOf(RosePrimary, RoseSecondary)
-                                }
-                            )
-                        )
-                        .border(
-                            3.dp,
-                            if (uiState.isListening) Color.White else Color.White.copy(alpha = 0.6f),
-                            CircleShape
-                        ),
-                    contentAlignment = Alignment.Center
+            } else {
+                // INACTIVE STATE: Hero "ACTIVATE ASSISTANT" button
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    Icon(
-                        imageVector = if (uiState.isListening) Icons.Default.MicOff else Icons.Default.Mic,
-                        contentDescription = if (uiState.isListening) "Stop Listening" else "Speak to Aria",
-                        tint = Color.White,
-                        modifier = Modifier.size(38.dp)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        // Big Activate Assistant Button
+                        Button(
+                            onClick = onToggleAssistantMode,
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = Color.Transparent
+                            ),
+                            contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp),
+                            shape = RoundedCornerShape(28.dp),
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(56.dp)
+                                .clip(RoundedCornerShape(28.dp))
+                                .background(
+                                    Brush.horizontalGradient(
+                                        listOf(RosePrimary, RoseSecondary, Color(0xFF9C27B0))
+                                    )
+                                )
+                                .border(2.dp, Color.White.copy(alpha = 0.8f), RoundedCornerShape(28.dp))
+                                .scale(pulseScale)
+                                .testTag("btn_activate_assistant")
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Bolt,
+                                    contentDescription = "Activate Assistant",
+                                    tint = Color.White,
+                                    modifier = Modifier.size(24.dp)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = "ACTIVATE ASSISTANT 🎙️✨",
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Black,
+                                    color = Color.White,
+                                    letterSpacing = 0.5.sp
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.width(10.dp))
+
+                        // Single query mic button
+                        IconButton(
+                            onClick = onToggleMic,
+                            modifier = Modifier
+                                .size(56.dp)
+                                .clip(CircleShape)
+                                .background(
+                                    if (uiState.isListening) HeartRed else Color.White.copy(alpha = 0.2f)
+                                )
+                                .border(1.5.dp, Color.White.copy(alpha = 0.6f), CircleShape)
+                                .testTag("single_mic_btn")
+                        ) {
+                            Icon(
+                                imageVector = if (uiState.isListening) Icons.Default.MicOff else Icons.Default.Mic,
+                                contentDescription = "Quick Mic",
+                                tint = Color.White,
+                                modifier = Modifier.size(26.dp)
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(6.dp))
+
+                    Text(
+                        text = "Tap 'Activate Assistant' to talk continuously without pressing mic repeatedly!",
+                        fontSize = 11.sp,
+                        color = Color.White.copy(alpha = 0.8f),
+                        textAlign = TextAlign.Center
                     )
                 }
             }
-
-            Spacer(modifier = Modifier.height(4.dp))
-
-            Text(
-                text = if (uiState.isListening) "Listening... Speak your command now! 🎙️" else "Tap Mic to Talk With Girlfriend 🎙️",
-                fontSize = 12.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = if (uiState.isListening) HeartRed else Color.White.copy(alpha = 0.85f),
-                textAlign = TextAlign.Center
-            )
         }
     }
 }

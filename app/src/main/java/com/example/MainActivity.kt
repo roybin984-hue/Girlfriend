@@ -229,6 +229,8 @@ fun GirlfriendApp(viewModel: MainViewModel = viewModel()) {
                 AppNavTab.VOICE -> {
                     LiveAnimeVoiceScreen(
                         uiState = uiState,
+                        onToggleAssistantMode = viewModel::toggleAssistantMode,
+                        onStopAssistantMode = viewModel::stopAssistantMode,
                         onToggleMic = viewModel::toggleVoiceListening,
                         onToggleVoice = viewModel::toggleAutoSpeak,
                         onSendQuickCommand = viewModel::sendMessage,

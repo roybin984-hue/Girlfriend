@@ -7,6 +7,7 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="com.android.alarm.permission.SET_ALARM" />
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+    <uses-feature android:name="android.hardware.camera.flash" android:required="false" />
 
     <queries>
         <package android:name="com.whatsapp" />
@@ -16,6 +17,12 @@
         <package android:name="com.spotify.music" />
         <package android:name="com.google.android.apps.maps" />
         <package android:name="com.android.chrome" />
+        <package android:name="com.dts.freefireth" />
+        <package android:name="com.dts.freefiremax" />
+        <package android:name="com.pubg.imobile" />
+        <package android:name="com.kiloo.subwaysurf" />
+        <package android:name="com.activision.callofduty.shooter" />
+        <package android:name="com.mojang.minecraftpe" />
         <intent>
             <action android:name="android.intent.action.VIEW" />
             <category android:name="android.intent.category.BROWSABLE" />

@@ -3,13 +3,18 @@ package com.example.actions
 import android.app.SearchManager
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
+import android.hardware.camera2.CameraManager
 import android.net.Uri
+import android.os.BatteryManager
 import android.provider.AlarmClock
 import android.provider.MediaStore
 import android.provider.Settings
 import com.example.data.ActionType
 import com.example.data.CompanionAction
 import java.net.URLEncoder
+import java.text.SimpleDateFormat
+import java.util.Date
 import java.util.Locale
 
 class CompanionActionHandler(private val context: Context) {
@@ -31,6 +36,9 @@ class CompanionActionHandler(private val context: Context) {
                 ActionType.OPEN_YOUTUBE -> openYouTube(action.payload)
                 ActionType.WEB_SEARCH -> searchWeb(action.payload)
                 ActionType.OPEN_APP -> openSpecificAppOrGame(action.target)
+                ActionType.CHECK_BATTERY -> checkBattery()
+                ActionType.CHECK_TIME -> checkTime()
+                ActionType.TOGGLE_FLASHLIGHT -> toggleFlashlight()
                 ActionType.NONE -> "No action required."
             }
         } catch (e: Exception) {
@@ -225,6 +233,43 @@ class CompanionActionHandler(private val context: Context) {
         }
         context.startActivity(intent)
         return "Searching Google for '$query' for you! 🔍"
+    }
+
+    fun checkBattery(): String {
+        return try {
+            val ifilter = IntentFilter(Intent.ACTION_BATTERY_CHANGED)
+            val batteryStatus = context.registerReceiver(null, ifilter)
+            val level = batteryStatus?.getIntExtra(BatteryManager.EXTRA_LEVEL, -1) ?: -1
+            val scale = batteryStatus?.getIntExtra(BatteryManager.EXTRA_SCALE, -1) ?: -1
+            val pct = if (level >= 0 && scale > 0) (level * 100 / scale) else 80
+            val isCharging = batteryStatus?.getIntExtra(BatteryManager.EXTRA_STATUS, -1) == BatteryManager.BATTERY_STATUS_CHARGING
+            if (isCharging) {
+                "Your battery is at $pct% and charging, handsome! 🔋⚡"
+            } else {
+                "Your battery is at $pct%, babe! Plenty of power to talk with me! 🔋❤️"
+            }
+        } catch (e: Exception) {
+            "Your battery is running strong, darling! 🔋"
+        }
+    }
+
+    fun checkTime(): String {
+        val sdf = SimpleDateFormat("h:mm a, EEEE, MMMM d", Locale.getDefault())
+        val formatted = sdf.format(Date())
+        return "It's $formatted right now, sweetie! ⏰✨"
+    }
+
+    private var isTorchOn = false
+    fun toggleFlashlight(): String {
+        return try {
+            val cameraManager = context.getSystemService(Context.CAMERA_SERVICE) as? CameraManager
+            val cameraId = cameraManager?.cameraIdList?.firstOrNull() ?: return "No flashlight found on this device!"
+            isTorchOn = !isTorchOn
+            cameraManager.setTorchMode(cameraId, isTorchOn)
+            if (isTorchOn) "Turned on your flashlight for you, babe! 🔦✨" else "Turned off the flashlight! 💡"
+        } catch (e: Exception) {
+            "Couldn't toggle flashlight on this device: ${e.message}"
+        }
     }
 
     /**
@@ -476,6 +521,33 @@ class CompanionActionHandler(private val context: Context) {
                 title = "Google Search",
                 description = "Searching Google for: $query",
                 payload = query
+            )
+        }
+
+        // 11. Battery Check
+        if ("battery" in lower || "charging" in lower || "charge kitna" in lower) {
+            return CompanionAction(
+                type = ActionType.CHECK_BATTERY,
+                title = "Battery Status",
+                description = "Checking phone battery level"
+            )
+        }
+
+        // 12. Time / Date Check
+        if (lower.startsWith("time ") || "time kya" in lower || "what time" in lower || "date kya" in lower || "what day" in lower || "tarikh" in lower) {
+            return CompanionAction(
+                type = ActionType.CHECK_TIME,
+                title = "Current Time",
+                description = "Checking current time and date"
+            )
+        }
+
+        // 13. Flashlight / Torch
+        if ("flashlight" in lower || "torch" in lower) {
+            return CompanionAction(
+                type = ActionType.TOGGLE_FLASHLIGHT,
+                title = "Flashlight",
+                description = "Toggling device torch"
             )
         }
 

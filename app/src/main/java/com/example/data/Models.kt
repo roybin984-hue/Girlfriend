@@ -18,7 +18,10 @@ enum class ActionType {
     SET_TIMER,
     OPEN_YOUTUBE,
     OPEN_APP,
-    WEB_SEARCH
+    WEB_SEARCH,
+    CHECK_BATTERY,
+    CHECK_TIME,
+    TOGGLE_FLASHLIGHT
 }
 
 data class CompanionAction(

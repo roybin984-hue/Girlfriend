@@ -29,6 +29,7 @@ data class MainUiState(
     val showActionHub: Boolean = false,
     val showOnboarding: Boolean = false,
     val isScreenShareActive: Boolean = false,
+    val isAssistantModeActive: Boolean = false,
     val toastMessage: String? = null
 )
 
@@ -57,6 +58,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             voiceManager.isSpeaking.collect { speaking ->
                 _uiState.value = _uiState.value.copy(isSpeaking = speaking)
+            }
+        }
+        viewModelScope.launch {
+            voiceManager.isAssistantMode.collect { assistantActive ->
+                _uiState.value = _uiState.value.copy(isAssistantModeActive = assistantActive)
             }
         }
         viewModelScope.launch {
@@ -144,8 +150,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 executeAction(responseMsg.action)
             }
 
-            // Speak response if auto-speak enabled
-            if (updatedProfile.autoSpeak) {
+            // Speak response if auto-speak or continuous assistant mode is enabled
+            if (updatedProfile.autoSpeak || _uiState.value.isAssistantModeActive) {
                 voiceManager.speak(
                     text = responseMsg.text,
                     pitch = updatedProfile.voicePitch,
@@ -153,6 +159,26 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 )
             }
         }
+    }
+
+    fun toggleAssistantMode() {
+        voiceManager.toggleAssistantMode()
+        val active = voiceManager.isAssistantMode.value
+        if (active) {
+            showToast("Aria Assistant: ACTIVE 🎙️ (Hands-Free)")
+        } else {
+            showToast("Aria Assistant: Stopped ⏹️")
+        }
+    }
+
+    fun activateAssistantMode() {
+        voiceManager.startAssistantMode()
+        showToast("Aria Assistant: ACTIVE 🎙️ (Hands-Free)")
+    }
+
+    fun stopAssistantMode() {
+        voiceManager.stopAssistantMode()
+        showToast("Aria Assistant: Stopped ⏹️")
     }
 
     fun executeAction(action: CompanionAction) {

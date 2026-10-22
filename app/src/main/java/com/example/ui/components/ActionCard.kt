@@ -16,9 +16,12 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Alarm
+import androidx.compose.material.icons.filled.BatteryChargingFull
 import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.filled.CameraAlt
+import androidx.compose.material.icons.filled.FlashlightOn
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.Button
@@ -103,6 +106,21 @@ fun ActionCard(
             MaterialTheme.colorScheme.primaryContainer,
             Icons.Default.CameraAlt,
             "Open ${action.target.ifBlank { "App" }}"
+        )
+        ActionType.CHECK_BATTERY -> Triple(
+            Color(0xFF4CAF50).copy(alpha = 0.15f),
+            Icons.Default.BatteryChargingFull,
+            "Battery Level"
+        )
+        ActionType.CHECK_TIME -> Triple(
+            Color(0xFF2196F3).copy(alpha = 0.15f),
+            Icons.Default.Schedule,
+            "Time & Date"
+        )
+        ActionType.TOGGLE_FLASHLIGHT -> Triple(
+            Color(0xFFFFC107).copy(alpha = 0.15f),
+            Icons.Default.FlashlightOn,
+            "Flashlight"
         )
         ActionType.NONE -> Triple(Color.Transparent, Icons.AutoMirrored.Filled.Chat, "Action")
     }
