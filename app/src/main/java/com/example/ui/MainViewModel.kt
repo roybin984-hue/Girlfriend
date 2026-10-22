@@ -28,6 +28,7 @@ data class MainUiState(
     val showVoiceSettings: Boolean = false,
     val showActionHub: Boolean = false,
     val showOnboarding: Boolean = false,
+    val isScreenShareActive: Boolean = false,
     val toastMessage: String? = null
 )
 
@@ -199,6 +200,17 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun showActionHubDialog(show: Boolean) {
         _uiState.value = _uiState.value.copy(showActionHub = show)
+    }
+
+    fun toggleScreenShare(active: Boolean) {
+        _uiState.value = _uiState.value.copy(isScreenShareActive = active)
+        val msg = if (active) {
+            "Screen share is active, ${preferences.userNickname}! I can see your screen now. Open any game or app! 🎮🔴"
+        } else {
+            "Screen share paused, ${preferences.userNickname}."
+        }
+        showToast(if (active) "Screen Share: ACTIVE 🔴" else "Screen Share: OFF ⚪")
+        speakAloud(msg)
     }
 
     fun completeOnboarding() {

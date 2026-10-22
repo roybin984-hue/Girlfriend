@@ -234,7 +234,9 @@ fun GirlfriendApp(viewModel: MainViewModel = viewModel()) {
                         onSendQuickCommand = viewModel::sendMessage,
                         onAvatarTouch = {
                             viewModel.speakAloud("Hehe, that tickles, ${uiState.profile.userNickname}! You are so cute! 🥰❤️")
-                        }
+                        },
+                        onToggleScreenShare = viewModel::toggleScreenShare,
+                        isScreenShareActive = uiState.isScreenShareActive
                     )
                 }
 
@@ -251,7 +253,10 @@ fun GirlfriendApp(viewModel: MainViewModel = viewModel()) {
                 AppNavTab.COACH -> {
                     ScreenCoachScreen(
                         userNickname = uiState.profile.userNickname,
-                        onSpeakTip = viewModel::speakAloud
+                        onSpeakTip = viewModel::speakAloud,
+                        isScreenShareActive = uiState.isScreenShareActive,
+                        onToggleScreenShare = viewModel::toggleScreenShare,
+                        onLaunchGame = { gameName -> viewModel.sendMessage("open $gameName") }
                     )
                 }
 

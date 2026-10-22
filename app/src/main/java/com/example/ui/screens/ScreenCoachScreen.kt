@@ -77,6 +77,9 @@ val SUPPORTED_GAMES = listOf(
 fun ScreenCoachScreen(
     userNickname: String,
     onSpeakTip: (String) -> Unit,
+    isScreenShareActive: Boolean = false,
+    onToggleScreenShare: (Boolean) -> Unit = {},
+    onLaunchGame: (String) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current

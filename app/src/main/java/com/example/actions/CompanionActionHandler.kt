@@ -6,7 +6,7 @@ import android.content.Intent
 import android.net.Uri
 import android.provider.AlarmClock
 import android.provider.MediaStore
-import android.widget.Toast
+import android.provider.Settings
 import com.example.data.ActionType
 import com.example.data.CompanionAction
 import java.net.URLEncoder
@@ -30,7 +30,7 @@ class CompanionActionHandler(private val context: Context) {
                 ActionType.SET_TIMER -> setTimer(action.payload)
                 ActionType.OPEN_YOUTUBE -> openYouTube(action.payload)
                 ActionType.WEB_SEARCH -> searchWeb(action.payload)
-                ActionType.OPEN_APP -> openSpecificApp(action.target)
+                ActionType.OPEN_APP -> openSpecificAppOrGame(action.target)
                 ActionType.NONE -> "No action required."
             }
         } catch (e: Exception) {
@@ -47,7 +47,6 @@ class CompanionActionHandler(private val context: Context) {
             context.startActivity(launchIntent)
             "Opening WhatsApp for you, babe! 💬"
         } else {
-            // Fallback to web WhatsApp or Play Store
             val webIntent = Intent(Intent.ACTION_VIEW, Uri.parse("https://web.whatsapp.com/")).apply {
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             }
@@ -62,7 +61,6 @@ class CompanionActionHandler(private val context: Context) {
         val encodedMsg = URLEncoder.encode(msg, "UTF-8")
 
         return if (cleanPhone.length >= 7) {
-            // Direct WhatsApp chat link
             val url = "https://api.whatsapp.com/send?phone=$cleanPhone&text=$encodedMsg"
             val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url)).apply {
                 setPackage("com.whatsapp")
@@ -72,13 +70,11 @@ class CompanionActionHandler(private val context: Context) {
                 context.startActivity(intent)
                 "Sending '$msg' to $cleanPhone on WhatsApp! 💬✨"
             } catch (e: Exception) {
-                // If package constraint fails, try generic view
                 intent.setPackage(null)
                 context.startActivity(intent)
                 "Ready to send '$msg' on WhatsApp! 💬"
             }
         } else {
-            // General WhatsApp share or pick contact
             val sendIntent = Intent(Intent.ACTION_SEND).apply {
                 type = "text/plain"
                 putExtra(Intent.EXTRA_TEXT, msg)
@@ -89,7 +85,6 @@ class CompanionActionHandler(private val context: Context) {
                 context.startActivity(sendIntent)
                 "Opening WhatsApp with your message '$msg'! Just select who to send to! 💬❤️"
             } catch (e: Exception) {
-                // WhatsApp not found, use system chooser
                 sendIntent.setPackage(null)
                 val chooser = Intent.createChooser(sendIntent, "Send message via").apply {
                     addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
@@ -116,8 +111,7 @@ class CompanionActionHandler(private val context: Context) {
     }
 
     fun shareInstagramStory(storyText: String): String {
-        val content = if (storyText.isNotBlank()) storyText else "Having the best day! ✨"
-        // Try Instagram Story intent or general share to Instagram
+        val content = if (storyText.isNotBlank()) storyText else "Having the best day with Aria! ✨"
         val storyIntent = Intent("com.instagram.share.ADD_TO_STORY").apply {
             type = "text/plain"
             putExtra("story_text", content)
@@ -129,7 +123,6 @@ class CompanionActionHandler(private val context: Context) {
             context.startActivity(storyIntent)
             "Opening Instagram story creator for you! 📸✨"
         } catch (e: Exception) {
-            // Try general send intent to Instagram
             val igIntent = Intent(Intent.ACTION_SEND).apply {
                 type = "text/plain"
                 putExtra(Intent.EXTRA_TEXT, content)
@@ -177,7 +170,6 @@ class CompanionActionHandler(private val context: Context) {
             putExtra(AlarmClock.EXTRA_SKIP_UI, false)
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
 
-            // Extract hour and minutes if present
             val hourMin = parseHourMinute(timeString)
             if (hourMin != null) {
                 putExtra(AlarmClock.EXTRA_HOUR, hourMin.first)
@@ -235,36 +227,106 @@ class CompanionActionHandler(private val context: Context) {
         return "Searching Google for '$query' for you! 🔍"
     }
 
-    fun openSpecificApp(appName: String): String {
-        val lower = appName.lowercase(Locale.ROOT)
-        return when {
+    /**
+     * Universal App & Game Launcher:
+     * Opens requested game (Free Fire, BGMI, Subway Surfers, COD, Minecraft, etc.)
+     * or utility apps (Camera, Spotify, Chrome, Settings, Calculator, etc.).
+     */
+    fun openSpecificAppOrGame(appName: String): String {
+        val lower = appName.lowercase(Locale.ROOT).trim()
+        val pm = context.packageManager
+
+        // 1. Direct Game & App Known Package Mappings
+        val packageCandidates = when {
+            "free fire" in lower || "freefire" in lower || lower == "ff" ->
+                listOf("com.dts.freefiremax", "com.dts.freefireth")
+            "bgmi" in lower || "pubg" in lower || "battleground" in lower ->
+                listOf("com.pubg.imobile", "com.tencent.ig", "com.vng.pubgmobile")
+            "subway" in lower || "surfer" in lower ->
+                listOf("com.kiloo.subwaysurf")
+            "call of duty" in lower || "cod" in lower ->
+                listOf("com.activision.callofduty.shooter")
+            "minecraft" in lower ->
+                listOf("com.mojang.minecraftpe")
+            "candy crush" in lower ->
+                listOf("com.king.candycrushsaga")
+            "ludo" in lower ->
+                listOf("com.ludo.king")
+            "roblox" in lower ->
+                listOf("com.roblox.client")
+            "clash of clans" in lower || lower == "coc" ->
+                listOf("com.supercell.clashofclans")
+            "whatsapp" in lower ->
+                listOf("com.whatsapp", "com.whatsapp.w4b")
+            "instagram" in lower || "insta" in lower ->
+                listOf("com.instagram.android")
+            "youtube" in lower ->
+                listOf("com.google.android.youtube")
+            "spotify" in lower || "music" in lower ->
+                listOf("com.spotify.music")
+            "chrome" in lower || "browser" in lower ->
+                listOf("com.android.chrome")
+            "calculator" in lower || "calc" in lower ->
+                listOf("com.google.android.calculator", "com.android.calculator2")
             "camera" in lower -> {
                 val intent = Intent(MediaStore.INTENT_ACTION_STILL_IMAGE_CAMERA).apply {
                     addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                 }
                 context.startActivity(intent)
-                "Opening camera! Look handsome for me! 📷✨"
+                return "Opening camera! Smile for me babe! 📷✨"
             }
-            "spotify" in lower || "music" in lower -> {
-                val launchIntent = context.packageManager.getLaunchIntentForPackage("com.spotify.music")
-                if (launchIntent != null) {
-                    launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                    context.startActivity(launchIntent)
-                    "Opening Spotify! Let's listen to romantic songs together! 🎶"
-                } else {
-                    openYouTube("romantic love songs")
-                }
-            }
-            "map" in lower || "maps" in lower -> {
-                val intent = Intent(Intent.ACTION_VIEW, Uri.parse("geo:0,0?q=restaurants")).apply {
+            "setting" in lower || "settings" in lower -> {
+                val intent = Intent(Settings.ACTION_SETTINGS).apply {
                     addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                 }
                 context.startActivity(intent)
-                "Opening Maps! Take me on a date somewhere nice! 🗺️❤️"
+                return "Opening device Settings for you! ⚙️"
             }
-            else -> {
-                searchWeb(appName)
+            "map" in lower || "maps" in lower ->
+                listOf("com.google.android.apps.maps")
+            "telegram" in lower ->
+                listOf("org.telegram.messenger")
+            "snapchat" in lower ->
+                listOf("com.snapchat.android")
+            else -> emptyList()
+        }
+
+        // Try direct candidate packages
+        for (pkg in packageCandidates) {
+            val intent = pm.getLaunchIntentForPackage(pkg)
+            if (intent != null) {
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                context.startActivity(intent)
+                return "Launching $appName! Enjoy your game babe! 🎮❤️"
             }
+        }
+
+        // 2. Dynamic Search in Installed Applications
+        try {
+            val installedApps = pm.getInstalledApplications(0)
+            for (app in installedApps) {
+                val label = pm.getApplicationLabel(app).toString().lowercase(Locale.ROOT)
+                if (label.contains(lower) || lower.contains(label)) {
+                    val launchIntent = pm.getLaunchIntentForPackage(app.packageName)
+                    if (launchIntent != null) {
+                        launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        context.startActivity(launchIntent)
+                        return "Opening ${pm.getApplicationLabel(app)} for you, babe! 🚀"
+                    }
+                }
+            }
+        } catch (_: Exception) {}
+
+        // 3. Fallback: Open Google Play Store to install/launch or Web Search
+        return try {
+            val marketIntent = Intent(Intent.ACTION_VIEW, Uri.parse("market://search?q=${URLEncoder.encode(appName, "UTF-8")}")).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            context.startActivity(marketIntent)
+            "Searching Play Store for '$appName' for you! 📲"
+        } catch (e: Exception) {
+            searchWeb(appName)
+            "Searching for '$appName'! 🔍"
         }
     }
 
@@ -277,7 +339,6 @@ class CompanionActionHandler(private val context: Context) {
         // 1. WhatsApp Commands
         if ("whatsapp" in lower || "watsapp" in lower || "whats app" in lower) {
             if ("send" in lower || "bhejo" in lower || "message" in lower || "karo" in lower && ("hey" in lower || "hello" in lower || "hi" in lower)) {
-                // Extract message and recipient if possible
                 val extractedMsg = when {
                     "hey" in lower -> "Hey! How are you?"
                     "hello" in lower -> "Hello! ❤️"
@@ -346,7 +407,24 @@ class CompanionActionHandler(private val context: Context) {
             )
         }
 
-        // 5. Alarm Commands
+        // 5. Game Launching & Universal App Commands
+        if (lower.startsWith("open ") || lower.startsWith("launch ") || "kholo" in lower || "chalao" in lower || "khelna hai" in lower || lower.startsWith("play ")) {
+            val appOrGame = text
+                .replace(Regex("(?i)^(open|launch|play|chalao|kholo|mujhe)\\s+"), "")
+                .replace(Regex("(?i)\\s+(kholo|chalao|open karo|khelna hai)$"), "")
+                .trim()
+
+            if (appOrGame.isNotBlank() && !appOrGame.contains("song") && !appOrGame.contains("video")) {
+                return CompanionAction(
+                    type = ActionType.OPEN_APP,
+                    title = "Open $appOrGame",
+                    description = "Opening $appOrGame for you! 🎮🚀",
+                    target = appOrGame
+                )
+            }
+        }
+
+        // 6. Alarm Commands
         if ("alarm" in lower || "wake me up" in lower || "jaga dena" in lower) {
             val time = extractTime(text) ?: "7:00 AM"
             return CompanionAction(
@@ -358,7 +436,7 @@ class CompanionActionHandler(private val context: Context) {
             )
         }
 
-        // 6. Timer Commands
+        // 7. Timer Commands
         if ("timer" in lower) {
             val seconds = extractTime(text) ?: "5 minutes"
             return CompanionAction(
@@ -369,7 +447,7 @@ class CompanionActionHandler(private val context: Context) {
             )
         }
 
-        // 7. YouTube / Music
+        // 8. YouTube / Music
         if ("youtube" in lower || "play song" in lower || "gaana" in lower || "music" in lower) {
             val query = text.replace(Regex("(?i)(play|song|on|youtube|gaana|bajao|chalao)"), "").trim()
             return CompanionAction(
@@ -380,7 +458,7 @@ class CompanionActionHandler(private val context: Context) {
             )
         }
 
-        // 8. Camera / App
+        // 9. Camera
         if ("camera" in lower || "photo khicho" in lower || "selfie" in lower) {
             return CompanionAction(
                 type = ActionType.OPEN_APP,
@@ -390,7 +468,7 @@ class CompanionActionHandler(private val context: Context) {
             )
         }
 
-        // 9. Google Search
+        // 10. Google Search
         if (lower.startsWith("search ") || lower.startsWith("google ")) {
             val query = text.replace(Regex("(?i)^(search|google)\\s+"), "").trim()
             return CompanionAction(
