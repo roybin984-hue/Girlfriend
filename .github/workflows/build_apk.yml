@@ -2,14 +2,15 @@ name: Build Android APK
 
 on:
   push:
-    branches: [ "main", "master" ]
   pull_request:
-    branches: [ "main", "master" ]
   workflow_dispatch:
+
+permissions:
+  contents: write
 
 jobs:
   build:
-    name: Build APK
+    name: Build & Release APK
     runs-on: ubuntu-latest
 
     steps:
@@ -23,13 +24,25 @@ jobs:
           distribution: 'temurin'
           cache: gradle
 
+      - name: Prepare Keystore and Environment
+        run: |
+          # Create .env from .env.example if missing
+          if [ ! -f ".env" ]; then
+            cp .env.example .env
+          fi
+          
+          # Restore or generate debug.keystore for signing
+          if [ -f "debug.keystore.base64" ]; then
+            base64 -d debug.keystore.base64 > debug.keystore
+          fi
+          if [ ! -f "debug.keystore" ]; then
+            keytool -genkey -v -keystore debug.keystore -alias androiddebugkey -storepass android -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
+          fi
+
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew || true
 
-      - name: Create .env from .env.example
-        run: cp .env.example .env
-
-      - name: Build Debug APK
+      - name: Build Debug APK with Gradle
         run: |
           if [ -f "./gradlew" ]; then
             ./gradlew assembleDebug --stacktrace
@@ -37,9 +50,30 @@ jobs:
             gradle assembleDebug --stacktrace
           fi
 
-      - name: Upload Debug APK
+      - name: Prepare APK for Release
+        run: |
+          mkdir -p release-apks
+          cp app/build/outputs/apk/debug/*.apk release-apks/Aria-AI-Girlfriend-v1.0.apk || true
+
+      - name: Upload APK to GitHub Actions Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: Aria-AI-Girlfriend-Debug-APK
-          path: app/build/outputs/apk/debug/*.apk
-          retention-days: 14
+          name: Aria-AI-Girlfriend-APK
+          path: release-apks/Aria-AI-Girlfriend-v1.0.apk
+          retention-days: 30
+
+      - name: Create or Update GitHub Release with APK
+        uses: softprops/action-gh-release@v2
+        if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+        with:
+          tag_name: v1.0.0
+          name: "Aria AI Girlfriend App v1.0.0"
+          body: |
+            ### 💖 Aria: AI Girlfriend Companion & Assistant
+            
+            Aapka Android APK taiyar hai! Niche diye gaye link se direct APK download karke apne phone me install kar sakte hain.
+            
+            **Direct Download:** `Aria-AI-Girlfriend-v1.0.apk`
+          files: release-apks/Aria-AI-Girlfriend-v1.0.apk
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

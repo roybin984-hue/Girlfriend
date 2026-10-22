@@ -10,21 +10,18 @@ import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -42,30 +39,23 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.R
 import com.example.ui.MainUiState
+import com.example.ui.components.AnimatedGirlfriendCharacter
 import com.example.ui.components.AudioWaveIndicator
 import com.example.ui.theme.HeartRed
 import com.example.ui.theme.RoseDarkBackground
@@ -83,51 +73,7 @@ fun LiveAnimeVoiceScreen(
     isScreenShareActive: Boolean,
     modifier: Modifier = Modifier
 ) {
-    var isRealisticMode by remember { mutableStateOf(true) }
-
-    // Breathing & natural body swaying physics
-    val infiniteTransition = rememberInfiniteTransition(label = "natural_physics")
-
-    val breathScaleY by infiniteTransition.animateFloat(
-        initialValue = 1.0f,
-        targetValue = 1.028f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(2200, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "breath_scale"
-    )
-
-    val bodySwayAngle by infiniteTransition.animateFloat(
-        initialValue = -1.4f,
-        targetValue = 1.4f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(3200, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "body_sway"
-    )
-
-    val bodyDriftX by infiniteTransition.animateFloat(
-        initialValue = -3f,
-        targetValue = 3f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(2800, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "body_drift"
-    )
-
-    // Animated mouth talking / lip-sync movement
-    val mouthScaleY by infiniteTransition.animateFloat(
-        initialValue = 0.2f,
-        targetValue = 1.0f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(130, easing = LinearEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "mouth_talking"
-    )
+    val infiniteTransition = rememberInfiniteTransition(label = "voice_ui_effects")
 
     val micPulse by infiniteTransition.animateFloat(
         initialValue = 1.0f,
@@ -153,80 +99,20 @@ fun LiveAnimeVoiceScreen(
         it.sender == com.example.data.MessageSender.GIRLFRIEND
     }?.text ?: "Hey ${uiState.profile.userNickname}! I'm listening. Ask me to open WhatsApp, Free Fire, or anything! ❤️"
 
-    BoxWithConstraints(
+    Box(
         modifier = modifier
             .fillMaxSize()
             .background(RoseDarkBackground)
     ) {
-        val totalWidth = maxWidth
-        val totalHeight = maxHeight
+        // Anime Girlfriend Character with natural body swaying physics and realistic talking mouth ("hot")
+        AnimatedGirlfriendCharacter(
+            isSpeaking = uiState.isSpeaking,
+            isListening = uiState.isListening,
+            onCharacterTouch = onAvatarTouch,
+            modifier = Modifier.fillMaxSize()
+        )
 
-        // Animated Realistic Character (Body Swaying + Breathing + Lip Moving)
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .graphicsLayer {
-                    rotationZ = bodySwayAngle
-                    translationX = bodyDriftX
-                    scaleY = breathScaleY
-                }
-                .clickable(onClick = onAvatarTouch),
-            contentAlignment = Alignment.Center
-        ) {
-            Image(
-                painter = painterResource(
-                    id = if (isRealisticMode) R.drawable.img_realistic_gf else R.drawable.img_anime_gf_live
-                ),
-                contentDescription = "Realistic Girlfriend Character",
-                contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxSize()
-            )
-
-            // Lip-Sync / Moving Mouth Simulation Layer
-            if (uiState.isSpeaking) {
-                // Placed right over mouth region
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.Center)
-                        .offset(
-                            x = if (isRealisticMode) 2.dp else 0.dp,
-                            y = if (isRealisticMode) (totalHeight * 0.005f) else (totalHeight * 0.05f)
-                        )
-                        .width(42.dp)
-                        .height((16.dp * mouthScaleY).coerceAtLeast(4.dp))
-                        .clip(RoundedCornerShape(50))
-                        .background(
-                            Brush.verticalGradient(
-                                colors = listOf(
-                                    Color(0xFFE57373).copy(alpha = 0.85f),
-                                    Color(0xFF5D1D24).copy(alpha = 0.95f),
-                                    Color(0xFFEF9A9A).copy(alpha = 0.85f)
-                                )
-                            )
-                        )
-                        .border(1.dp, Color(0xFFD32F2F).copy(alpha = 0.5f), RoundedCornerShape(50))
-                )
-            }
-
-            // Vignette Gradient Overlay for readability
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(
-                        Brush.verticalGradient(
-                            colors = listOf(
-                                Color.Black.copy(alpha = 0.55f),
-                                Color.Transparent,
-                                Color.Black.copy(alpha = 0.88f)
-                            ),
-                            startY = 0f,
-                            endY = Float.POSITIVE_INFINITY
-                        )
-                    )
-            )
-        }
-
-        // Top Status Header with Screen Share Switch & Mode Toggle
+        // Top Status Header with Screen Share Switch & Audio Toggle
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -293,41 +179,23 @@ fun LiveAnimeVoiceScreen(
                 }
             }
 
-            // Switch between Realistic & Anime style + Mute toggle
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Surface(
-                    shape = RoundedCornerShape(16.dp),
-                    color = Color.Black.copy(alpha = 0.65f),
-                    modifier = Modifier.clickable { isRealisticMode = !isRealisticMode }
-                ) {
-                    Text(
-                        text = if (isRealisticMode) "Real 👩" else "Anime 🌸",
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = RoseSecondary,
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp)
-                    )
-                }
-
-                Spacer(modifier = Modifier.width(6.dp))
-
-                IconButton(
-                    onClick = onToggleVoice,
-                    modifier = Modifier
-                        .size(34.dp)
-                        .background(Color.Black.copy(alpha = 0.65f), CircleShape)
-                ) {
-                    Icon(
-                        imageVector = if (uiState.profile.autoSpeak) Icons.AutoMirrored.Filled.VolumeUp else Icons.AutoMirrored.Filled.VolumeOff,
-                        contentDescription = "Toggle Voice",
-                        tint = if (uiState.profile.autoSpeak) RosePrimary else Color.White.copy(alpha = 0.6f),
-                        modifier = Modifier.size(18.dp)
-                    )
-                }
+            // Mute / Voice Toggle Icon
+            IconButton(
+                onClick = onToggleVoice,
+                modifier = Modifier
+                    .size(36.dp)
+                    .background(Color.Black.copy(alpha = 0.65f), CircleShape)
+            ) {
+                Icon(
+                    imageVector = if (uiState.profile.autoSpeak) Icons.AutoMirrored.Filled.VolumeUp else Icons.AutoMirrored.Filled.VolumeOff,
+                    contentDescription = "Toggle Voice",
+                    tint = if (uiState.profile.autoSpeak) RosePrimary else Color.White.copy(alpha = 0.6f),
+                    modifier = Modifier.size(20.dp)
+                )
             }
         }
 
-        // Bottom Section: Dialogue Subtitles + Quick Game & App Action Chips + Giant Voice Button
+        // Bottom Section: Dialogue Subtitles + Quick Action Chips + Giant Voice Mic Button
         Column(
             modifier = Modifier
                 .fillMaxWidth()
