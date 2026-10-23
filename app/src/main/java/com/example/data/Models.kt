@@ -21,8 +21,18 @@ enum class ActionType {
     WEB_SEARCH,
     CHECK_BATTERY,
     CHECK_TIME,
-    TOGGLE_FLASHLIGHT
+    TOGGLE_FLASHLIGHT,
+    INSTALL_APP
 }
+
+data class ServerControlConfig(
+    val maintenanceMode: Boolean = false,
+    val serverActive: Boolean = true,
+    val maintenanceMessage: String = "Server maintenance chal raha hai! Admin ne temporary band kar rakha hai. Thodi der me restart ho jayega! 🛠️",
+    val announcement: String = "",
+    val adminEmail: String = "roysurjo27238@gmail.com",
+    val lastUpdated: Long = System.currentTimeMillis()
+)
 
 data class CompanionAction(
     val type: ActionType,
