@@ -22,6 +22,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -63,6 +64,7 @@ fun VoiceProfileScreen(
     profile: CompanionProfile,
     onSaveProfile: (CompanionProfile) -> Unit,
     onTestVoice: (pitch: Float, rate: Float, text: String) -> Unit,
+    onOpenAdminPanel: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     var name by remember(profile.name) { mutableStateOf(profile.name) }
@@ -366,6 +368,23 @@ fun VoiceProfileScreen(
             colors = ButtonDefaults.buttonColors(containerColor = RosePrimary)
         ) {
             Text("Save Settings ❤️", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = Color.White)
+        }
+
+        Spacer(modifier = Modifier.height(14.dp))
+
+        // Admin & Firebase Server Control Button
+        OutlinedButton(
+            onClick = onOpenAdminPanel,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(48.dp)
+                .testTag("open_admin_panel_btn"),
+            shape = RoundedCornerShape(14.dp),
+            border = androidx.compose.foundation.BorderStroke(1.dp, RosePrimary.copy(alpha = 0.5f))
+        ) {
+            Icon(Icons.Default.Security, contentDescription = null, tint = RosePrimary)
+            Spacer(modifier = Modifier.width(8.dp))
+            Text("Firebase Admin & Server Control 🛡️", color = RosePrimary, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
         }
 
         Spacer(modifier = Modifier.height(24.dp))

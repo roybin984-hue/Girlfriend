@@ -39,6 +39,7 @@ class CompanionActionHandler(private val context: Context) {
                 ActionType.CHECK_BATTERY -> checkBattery()
                 ActionType.CHECK_TIME -> checkTime()
                 ActionType.TOGGLE_FLASHLIGHT -> toggleFlashlight()
+                ActionType.INSTALL_APP -> installAppFromPlayStore(action.target)
                 ActionType.NONE -> "No action required."
             }
         } catch (e: Exception) {
@@ -375,6 +376,60 @@ class CompanionActionHandler(private val context: Context) {
         }
     }
 
+    fun installAppFromPlayStore(target: String): String {
+        val clean = target.trim()
+        val lower = clean.lowercase(Locale.ROOT)
+        val directPackage = when {
+            "free fire max" in lower -> "com.dts.freefiremax"
+            "free fire" in lower -> "com.dts.freefireth"
+            "bgmi" in lower || "battlegrounds" in lower -> "com.pubg.imobile"
+            "subway" in lower -> "com.kiloo.subwaysurf"
+            "cod" in lower || "call of duty" in lower -> "com.activision.callofduty.shooter"
+            "pubg" in lower -> "com.tencent.ig"
+            "minecraft" in lower -> "com.mojang.minecraftpe"
+            "roblox" in lower -> "com.roblox.client"
+            "clash of clans" in lower || lower == "coc" -> "com.supercell.clashofclans"
+            "whatsapp" in lower -> "com.whatsapp"
+            "instagram" in lower -> "com.instagram.android"
+            "telegram" in lower -> "org.telegram.messenger"
+            "snapchat" in lower -> "com.snapchat.android"
+            else -> null
+        }
+
+        val intent = if (directPackage != null) {
+            try {
+                Intent(Intent.ACTION_VIEW, Uri.parse("market://details?id=$directPackage")).apply {
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+            } catch (_: Exception) {
+                Intent(Intent.ACTION_VIEW, Uri.parse("https://play.google.com/store/apps/details?id=$directPackage")).apply {
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+            }
+        } else {
+            try {
+                Intent(Intent.ACTION_VIEW, Uri.parse("market://search?q=${URLEncoder.encode(clean, "UTF-8")}&c=apps")).apply {
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+            } catch (_: Exception) {
+                Intent(Intent.ACTION_VIEW, Uri.parse("https://play.google.com/store/search?q=${URLEncoder.encode(clean, "UTF-8")}&c=apps")).apply {
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+            }
+        }
+
+        return try {
+            context.startActivity(intent)
+            "Opening Google Play Store to install '$clean' for you! Just tap Install, babe! 📲🎮"
+        } catch (e: Exception) {
+            val webIntent = Intent(Intent.ACTION_VIEW, Uri.parse("https://play.google.com/store/search?q=${URLEncoder.encode(clean, "UTF-8")}")).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            context.startActivity(webIntent)
+            "Opened Play Store in browser for '$clean'! 📲"
+        }
+    }
+
     /**
      * Parses user natural language command into an executable action.
      */
@@ -452,7 +507,20 @@ class CompanionActionHandler(private val context: Context) {
             )
         }
 
-        // 5. Game Launching & Universal App Commands
+        // 5. Play Store & Install Commands (Requested by User)
+        if ("install" in lower || "download" in lower || "play store" in lower || "playstore" in lower) {
+            val appTarget = text
+                .replace(Regex("(?i)(play store se|playstore se|play store me|play store|playstore|se|game|app|application|install karo|install kar do|install|download karo|download kar do|download|khol kar|khol ke)"), "")
+                .trim()
+            return CompanionAction(
+                type = ActionType.INSTALL_APP,
+                title = "Install from Play Store",
+                description = "Opening Google Play Store to install ${appTarget.ifBlank { "game/app" }}",
+                target = appTarget.ifBlank { "popular games" }
+            )
+        }
+
+        // 6. Game Launching & Universal App Commands
         if (lower.startsWith("open ") || lower.startsWith("launch ") || "kholo" in lower || "chalao" in lower || "khelna hai" in lower || lower.startsWith("play ")) {
             val appOrGame = text
                 .replace(Regex("(?i)^(open|launch|play|chalao|kholo|mujhe)\\s+"), "")

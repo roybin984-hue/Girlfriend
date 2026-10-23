@@ -82,6 +82,13 @@ import com.example.ui.screens.LiveAnimeVoiceScreen
 import com.example.ui.screens.OnboardingDialog
 import com.example.ui.screens.ScreenCoachScreen
 import com.example.ui.screens.VoiceProfileScreen
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.remember
+import com.example.ui.screens.AdminControlDialog
+import com.example.ui.screens.MaintenanceScreen
 import com.example.ui.theme.HeartRed
 import com.example.ui.theme.MyApplicationTheme
 import com.example.ui.theme.RosePrimary
@@ -111,166 +118,221 @@ fun GirlfriendApp(viewModel: MainViewModel = viewModel()) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     var currentTab by rememberSaveable { mutableStateOf(AppNavTab.VOICE) }
 
-    Scaffold(
-        contentWindowInsets = WindowInsets(0, 0, 0, 0),
-        topBar = {
-            if (currentTab != AppNavTab.VOICE) {
-                GirlfriendTopBar(
-                    uiState = uiState,
-                    onAvatarClick = {
-                        viewModel.speakAloud("I love you ${uiState.profile.userNickname}! You mean the whole world to me! ❤️")
-                    },
-                    onToggleVoice = { viewModel.toggleAutoSpeak() },
-                    onOpenActionHub = { viewModel.showActionHubDialog(true) }
-                )
-            }
-        },
-        bottomBar = {
-            Column(modifier = Modifier.background(MaterialTheme.colorScheme.surface)) {
-                // For Chat tab: show chat input box right above the navigation bar
-                if (currentTab == AppNavTab.CHAT) {
-                    ChatInputRow(
+    // If Server Maintenance Mode is active in Firebase, block screen and show Maintenance UI
+    if (uiState.serverConfig.maintenanceMode || !uiState.serverConfig.serverActive) {
+        MaintenanceScreen(
+            serverConfig = uiState.serverConfig,
+            isSyncing = uiState.isFirebaseSyncing,
+            onRefreshStatus = viewModel::refreshServerStatus,
+            onOpenAdminLogin = { viewModel.setAdminLoginPromptVisible(true) }
+        )
+    } else {
+        Scaffold(
+            contentWindowInsets = WindowInsets(0, 0, 0, 0),
+            topBar = {
+                if (currentTab != AppNavTab.VOICE) {
+                    GirlfriendTopBar(
                         uiState = uiState,
-                        onTextChanged = viewModel::onInputTextChanged,
-                        onSendMessage = { viewModel.sendMessage(uiState.inputText) },
-                        onToggleMic = viewModel::toggleVoiceListening
+                        onAvatarClick = {
+                            viewModel.speakAloud("I love you ${uiState.profile.userNickname}! You mean the whole world to me! ❤️")
+                        },
+                        onToggleVoice = { viewModel.toggleAutoSpeak() },
+                        onOpenActionHub = { viewModel.showActionHubDialog(true) }
                     )
                 }
+            },
+            bottomBar = {
+                Column(modifier = Modifier.background(MaterialTheme.colorScheme.surface)) {
+                    // For Chat tab: show chat input box right above the navigation bar
+                    if (currentTab == AppNavTab.CHAT) {
+                        ChatInputRow(
+                            uiState = uiState,
+                            onTextChanged = viewModel::onInputTextChanged,
+                            onSendMessage = { viewModel.sendMessage(uiState.inputText) },
+                            onToggleMic = viewModel::toggleVoiceListening
+                        )
+                    }
 
-                // Bottom Navigation Bar with 4 tabs
-                NavigationBar(
-                    containerColor = MaterialTheme.colorScheme.surface,
-                    tonalElevation = 6.dp,
-                    windowInsets = WindowInsets.navigationBars,
-                    modifier = Modifier.testTag("bottom_nav_bar")
-                ) {
-                    NavigationBarItem(
-                        selected = currentTab == AppNavTab.VOICE,
-                        onClick = { currentTab = AppNavTab.VOICE },
-                        icon = {
-                            Icon(
-                                imageVector = Icons.Default.RecordVoiceOver,
-                                contentDescription = "Live Voice"
-                            )
-                        },
-                        label = { Text("Voice Call", fontSize = 11.sp, fontWeight = FontWeight.SemiBold) },
-                        colors = NavigationBarItemDefaults.colors(
-                            selectedIconColor = RosePrimary,
-                            selectedTextColor = RosePrimary,
-                            indicatorColor = MaterialTheme.colorScheme.primaryContainer
-                        ),
-                        modifier = Modifier.testTag("nav_tab_voice")
-                    )
+                    // Bottom Navigation Bar with 4 tabs
+                    NavigationBar(
+                        containerColor = MaterialTheme.colorScheme.surface,
+                        tonalElevation = 6.dp,
+                        windowInsets = WindowInsets.navigationBars,
+                        modifier = Modifier.testTag("bottom_nav_bar")
+                    ) {
+                        NavigationBarItem(
+                            selected = currentTab == AppNavTab.VOICE,
+                            onClick = { currentTab = AppNavTab.VOICE },
+                            icon = {
+                                Icon(
+                                    imageVector = Icons.Default.RecordVoiceOver,
+                                    contentDescription = "Live Voice"
+                                )
+                            },
+                            label = { Text("Voice Call", fontSize = 11.sp, fontWeight = FontWeight.SemiBold) },
+                            colors = NavigationBarItemDefaults.colors(
+                                selectedIconColor = RosePrimary,
+                                selectedTextColor = RosePrimary,
+                                indicatorColor = MaterialTheme.colorScheme.primaryContainer
+                            ),
+                            modifier = Modifier.testTag("nav_tab_voice")
+                        )
 
-                    NavigationBarItem(
-                        selected = currentTab == AppNavTab.CHAT,
-                        onClick = { currentTab = AppNavTab.CHAT },
-                        icon = {
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Filled.Chat,
-                                contentDescription = "Chat"
-                            )
-                        },
-                        label = { Text("Chat", fontSize = 11.sp, fontWeight = FontWeight.SemiBold) },
-                        colors = NavigationBarItemDefaults.colors(
-                            selectedIconColor = RosePrimary,
-                            selectedTextColor = RosePrimary,
-                            indicatorColor = MaterialTheme.colorScheme.primaryContainer
-                        ),
-                        modifier = Modifier.testTag("nav_tab_chat")
-                    )
+                        NavigationBarItem(
+                            selected = currentTab == AppNavTab.CHAT,
+                            onClick = { currentTab = AppNavTab.CHAT },
+                            icon = {
+                                Icon(
+                                    imageVector = Icons.AutoMirrored.Filled.Chat,
+                                    contentDescription = "Chat"
+                                )
+                            },
+                            label = { Text("Chat", fontSize = 11.sp, fontWeight = FontWeight.SemiBold) },
+                            colors = NavigationBarItemDefaults.colors(
+                                selectedIconColor = RosePrimary,
+                                selectedTextColor = RosePrimary,
+                                indicatorColor = MaterialTheme.colorScheme.primaryContainer
+                            ),
+                            modifier = Modifier.testTag("nav_tab_chat")
+                        )
 
-                    NavigationBarItem(
-                        selected = currentTab == AppNavTab.COACH,
-                        onClick = { currentTab = AppNavTab.COACH },
-                        icon = {
-                            Icon(
-                                imageVector = Icons.Default.SportsEsports,
-                                contentDescription = "Game Coach"
-                            )
-                        },
-                        label = { Text("Game Coach", fontSize = 11.sp, fontWeight = FontWeight.SemiBold) },
-                        colors = NavigationBarItemDefaults.colors(
-                            selectedIconColor = RosePrimary,
-                            selectedTextColor = RosePrimary,
-                            indicatorColor = MaterialTheme.colorScheme.primaryContainer
-                        ),
-                        modifier = Modifier.testTag("nav_tab_coach")
-                    )
+                        NavigationBarItem(
+                            selected = currentTab == AppNavTab.COACH,
+                            onClick = { currentTab = AppNavTab.COACH },
+                            icon = {
+                                Icon(
+                                    imageVector = Icons.Default.SportsEsports,
+                                    contentDescription = "Game Coach"
+                                )
+                            },
+                            label = { Text("Game Coach", fontSize = 11.sp, fontWeight = FontWeight.SemiBold) },
+                            colors = NavigationBarItemDefaults.colors(
+                                selectedIconColor = RosePrimary,
+                                selectedTextColor = RosePrimary,
+                                indicatorColor = MaterialTheme.colorScheme.primaryContainer
+                            ),
+                            modifier = Modifier.testTag("nav_tab_coach")
+                        )
 
-                    NavigationBarItem(
-                        selected = currentTab == AppNavTab.PROFILE,
-                        onClick = { currentTab = AppNavTab.PROFILE },
-                        icon = {
-                            Icon(
-                                imageVector = Icons.Default.Tune,
-                                contentDescription = "Voice & Settings"
-                            )
-                        },
-                        label = { Text("Voice Style", fontSize = 11.sp, fontWeight = FontWeight.SemiBold) },
-                        colors = NavigationBarItemDefaults.colors(
-                            selectedIconColor = RosePrimary,
-                            selectedTextColor = RosePrimary,
-                            indicatorColor = MaterialTheme.colorScheme.primaryContainer
-                        ),
-                        modifier = Modifier.testTag("nav_tab_profile")
-                    )
+                        NavigationBarItem(
+                            selected = currentTab == AppNavTab.PROFILE,
+                            onClick = { currentTab = AppNavTab.PROFILE },
+                            icon = {
+                                Icon(
+                                    imageVector = Icons.Default.Tune,
+                                    contentDescription = "Voice & Settings"
+                                )
+                            },
+                            label = { Text("Voice Style", fontSize = 11.sp, fontWeight = FontWeight.SemiBold) },
+                            colors = NavigationBarItemDefaults.colors(
+                                selectedIconColor = RosePrimary,
+                                selectedTextColor = RosePrimary,
+                                indicatorColor = MaterialTheme.colorScheme.primaryContainer
+                            ),
+                            modifier = Modifier.testTag("nav_tab_profile")
+                        )
+                    }
                 }
-            }
-        },
-        modifier = Modifier.fillMaxSize()
-    ) { innerPadding ->
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding)
-        ) {
-            when (currentTab) {
-                AppNavTab.VOICE -> {
-                    LiveAnimeVoiceScreen(
-                        uiState = uiState,
-                        onToggleAssistantMode = viewModel::toggleAssistantMode,
-                        onStopAssistantMode = viewModel::stopAssistantMode,
-                        onToggleMic = viewModel::toggleVoiceListening,
-                        onToggleVoice = viewModel::toggleAutoSpeak,
-                        onSendQuickCommand = viewModel::sendMessage,
-                        onAvatarTouch = {
-                            viewModel.speakAloud("Hehe, that tickles, ${uiState.profile.userNickname}! You are so cute! 🥰❤️")
-                        },
-                        onToggleScreenShare = viewModel::toggleScreenShare,
-                        isScreenShareActive = uiState.isScreenShareActive
-                    )
-                }
+            },
+            modifier = Modifier.fillMaxSize()
+        ) { innerPadding ->
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding)
+            ) {
+                when (currentTab) {
+                    AppNavTab.VOICE -> {
+                        LiveAnimeVoiceScreen(
+                            uiState = uiState,
+                            onToggleAssistantMode = viewModel::toggleAssistantMode,
+                            onStopAssistantMode = viewModel::stopAssistantMode,
+                            onToggleMic = viewModel::toggleVoiceListening,
+                            onToggleVoice = viewModel::toggleAutoSpeak,
+                            onSendQuickCommand = viewModel::sendMessage,
+                            onAvatarTouch = {
+                                viewModel.speakAloud("Hehe, that tickles, ${uiState.profile.userNickname}! You are so cute! 🥰❤️")
+                            },
+                            onToggleScreenShare = viewModel::toggleScreenShare,
+                            isScreenShareActive = uiState.isScreenShareActive
+                        )
+                    }
 
-                AppNavTab.CHAT -> {
-                    GirlfriendChatContent(
-                        uiState = uiState,
-                        innerPadding = PaddingValues(0.dp),
-                        onSendMessage = viewModel::sendMessage,
-                        onSpeakMessage = viewModel::speakAloud,
-                        onExecuteAction = viewModel::executeAction
-                    )
-                }
+                    AppNavTab.CHAT -> {
+                        GirlfriendChatContent(
+                            uiState = uiState,
+                            innerPadding = PaddingValues(0.dp),
+                            onSendMessage = viewModel::sendMessage,
+                            onSpeakMessage = viewModel::speakAloud,
+                            onExecuteAction = viewModel::executeAction
+                        )
+                    }
 
-                AppNavTab.COACH -> {
-                    ScreenCoachScreen(
-                        userNickname = uiState.profile.userNickname,
-                        onSpeakTip = viewModel::speakAloud,
-                        isScreenShareActive = uiState.isScreenShareActive,
-                        onToggleScreenShare = viewModel::toggleScreenShare,
-                        onLaunchGame = { gameName -> viewModel.sendMessage("open $gameName") }
-                    )
-                }
+                    AppNavTab.COACH -> {
+                        ScreenCoachScreen(
+                            userNickname = uiState.profile.userNickname,
+                            onSpeakTip = viewModel::speakAloud,
+                            isScreenShareActive = uiState.isScreenShareActive,
+                            onToggleScreenShare = viewModel::toggleScreenShare,
+                            onLaunchGame = { gameName -> viewModel.sendMessage("open $gameName") }
+                        )
+                    }
 
-                AppNavTab.PROFILE -> {
-                    VoiceProfileScreen(
-                        profile = uiState.profile,
-                        onSaveProfile = viewModel::saveProfile,
-                        onTestVoice = viewModel::testVoice
-                    )
+                    AppNavTab.PROFILE -> {
+                        VoiceProfileScreen(
+                            profile = uiState.profile,
+                            onSaveProfile = viewModel::saveProfile,
+                            onTestVoice = viewModel::testVoice,
+                            onOpenAdminPanel = { viewModel.setAdminLoginPromptVisible(true) }
+                        )
+                    }
                 }
             }
         }
+    }
+
+    // Admin PIN Login Dialog
+    if (uiState.showAdminLoginPrompt) {
+        var enteredPin by remember { mutableStateOf("") }
+        AlertDialog(
+            onDismissRequest = { viewModel.setAdminLoginPromptVisible(false) },
+            title = { Text("Admin PIN Required 🛡️", fontWeight = FontWeight.Bold) },
+            text = {
+                Column {
+                    Text("Enter PIN to access Firebase server control (Default: 1234):", fontSize = 13.sp)
+                    Spacer(modifier = Modifier.height(10.dp))
+                    OutlinedTextField(
+                        value = enteredPin,
+                        onValueChange = { enteredPin = it },
+                        singleLine = true,
+                        placeholder = { Text("Enter PIN...") }
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = { viewModel.verifyAdminPin(enteredPin) },
+                    colors = ButtonDefaults.buttonColors(containerColor = RosePrimary)
+                ) {
+                    Text("Unlock")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { viewModel.setAdminLoginPromptVisible(false) }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
+    // Firebase Admin Control Dashboard Dialog
+    if (uiState.showAdminDialog) {
+        AdminControlDialog(
+            config = uiState.serverConfig,
+            isSyncing = uiState.isFirebaseSyncing,
+            onDismiss = { viewModel.setAdminDialogVisible(false) },
+            onSaveConfig = viewModel::updateServerConfig
+        )
     }
 
     // Action Hub Shortcuts Dialog

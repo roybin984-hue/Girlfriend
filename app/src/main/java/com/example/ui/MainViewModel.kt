@@ -11,6 +11,8 @@ import com.example.data.CompanionAction
 import com.example.data.CompanionPreferences
 import com.example.data.CompanionProfile
 import com.example.data.MessageSender
+import com.example.data.ServerControlConfig
+import com.example.firebase.FirebaseServerControlService
 import com.example.voice.VoiceManager
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -30,6 +32,10 @@ data class MainUiState(
     val showOnboarding: Boolean = false,
     val isScreenShareActive: Boolean = false,
     val isAssistantModeActive: Boolean = false,
+    val serverConfig: ServerControlConfig = ServerControlConfig(),
+    val isFirebaseSyncing: Boolean = false,
+    val showAdminDialog: Boolean = false,
+    val showAdminLoginPrompt: Boolean = false,
     val toastMessage: String? = null
 )
 
@@ -39,6 +45,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val actionHandler = CompanionActionHandler(application)
     private val aiService = GeminiCompanionService(actionHandler)
     private val voiceManager = VoiceManager(application)
+    private val serverControlService = FirebaseServerControlService(application)
 
     private val _uiState = MutableStateFlow(
         MainUiState(
@@ -49,6 +56,17 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val uiState: StateFlow<MainUiState> = _uiState.asStateFlow()
 
     init {
+        // Collect server control config from Firebase Realtime Database
+        viewModelScope.launch {
+            serverControlService.config.collect { config ->
+                _uiState.value = _uiState.value.copy(serverConfig = config)
+            }
+        }
+        viewModelScope.launch {
+            serverControlService.isSyncing.collect { syncing ->
+                _uiState.value = _uiState.value.copy(isFirebaseSyncing = syncing)
+            }
+        }
         // Collect voice states
         viewModelScope.launch {
             voiceManager.isListening.collect { listening ->
@@ -242,6 +260,40 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun completeOnboarding() {
         preferences.hasCompletedOnboarding = true
         _uiState.value = _uiState.value.copy(showOnboarding = false)
+    }
+
+    fun refreshServerStatus() {
+        serverControlService.fetchRemoteConfig { _, message ->
+            showToast(message)
+        }
+    }
+
+    fun updateServerConfig(maintenanceMode: Boolean, serverActive: Boolean, message: String, announcement: String) {
+        serverControlService.updateRemoteConfig(maintenanceMode, serverActive, message, announcement) { success, resultMsg ->
+            showToast(resultMsg)
+            if (success) {
+                _uiState.value = _uiState.value.copy(showAdminDialog = false)
+            }
+        }
+    }
+
+    fun setAdminDialogVisible(visible: Boolean) {
+        _uiState.value = _uiState.value.copy(showAdminDialog = visible)
+    }
+
+    fun setAdminLoginPromptVisible(visible: Boolean) {
+        _uiState.value = _uiState.value.copy(showAdminLoginPrompt = visible)
+    }
+
+    fun verifyAdminPin(pin: String): Boolean {
+        val valid = pin == "1234" || pin.equals("admin786", ignoreCase = true) || pin == "0000"
+        if (valid) {
+            _uiState.value = _uiState.value.copy(showAdminLoginPrompt = false, showAdminDialog = true)
+            showToast("Admin access granted! 🛡️")
+        } else {
+            showToast("Invalid Admin PIN! ❌")
+        }
+        return valid
     }
 
     fun showToast(msg: String) {

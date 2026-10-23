@@ -180,7 +180,8 @@ class VoiceManager(private val context: Context) : TextToSpeech.OnInitListener {
             val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
                 putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
                 putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.getDefault())
-                putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
+                putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, Locale.getDefault().toString())
+                putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 3)
                 putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, false)
             }
             try {
@@ -231,6 +232,32 @@ class VoiceManager(private val context: Context) : TextToSpeech.OnInitListener {
         currentRate = rate
         tts?.setPitch(pitch)
         tts?.setSpeechRate(rate)
+
+        // Multilingual Detection: Auto-switch TTS voice to Hindi, Bengali, or English
+        try {
+            when {
+                text.any { it in '\u0900'..'\u097F' } -> {
+                    // Hindi script
+                    val hindiLocale = Locale("hi", "IN")
+                    if (tts?.isLanguageAvailable(hindiLocale) == TextToSpeech.LANG_AVAILABLE ||
+                        tts?.isLanguageAvailable(hindiLocale) == TextToSpeech.LANG_COUNTRY_AVAILABLE) {
+                        tts?.language = hindiLocale
+                    }
+                }
+                text.any { it in '\u0980'..'\u09FF' } -> {
+                    // Bengali script
+                    val bengaliLocale = Locale("bn", "IN")
+                    if (tts?.isLanguageAvailable(bengaliLocale) == TextToSpeech.LANG_AVAILABLE ||
+                        tts?.isLanguageAvailable(bengaliLocale) == TextToSpeech.LANG_COUNTRY_AVAILABLE) {
+                        tts?.language = bengaliLocale
+                    }
+                }
+                else -> {
+                    // Default / English / Hinglish
+                    tts?.language = Locale.getDefault()
+                }
+            }
+        } catch (_: Exception) {}
 
         // Clean emojis and markdown from text before TTS for smooth voice
         val cleanText = cleanTextForSpeech(text)

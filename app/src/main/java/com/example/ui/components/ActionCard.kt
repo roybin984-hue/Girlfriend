@@ -122,6 +122,11 @@ fun ActionCard(
             Icons.Default.FlashlightOn,
             "Flashlight"
         )
+        ActionType.INSTALL_APP -> Triple(
+            Color(0xFF00C853).copy(alpha = 0.15f),
+            Icons.Default.Share,
+            "Install from Play Store"
+        )
         ActionType.NONE -> Triple(Color.Transparent, Icons.AutoMirrored.Filled.Chat, "Action")
     }
 

@@ -6,10 +6,9 @@ import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.keyframes
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -33,13 +32,8 @@ import androidx.compose.material.icons.automirrored.filled.ScreenShare
 import androidx.compose.material.icons.automirrored.filled.StopScreenShare
 import androidx.compose.material.icons.automirrored.filled.VolumeOff
 import androidx.compose.material.icons.automirrored.filled.VolumeUp
-import androidx.compose.material.icons.filled.Bolt
-import androidx.compose.material.icons.filled.Mic
-import androidx.compose.material.icons.filled.MicOff
-import androidx.compose.material.icons.filled.RecordVoiceOver
-import androidx.compose.material.icons.filled.Stop
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
@@ -47,8 +41,13 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import kotlinx.coroutines.delay
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
@@ -82,14 +81,44 @@ fun LiveAnimeVoiceScreen(
 ) {
     val infiniteTransition = rememberInfiniteTransition(label = "voice_ui_effects")
 
-    val pulseScale by infiniteTransition.animateFloat(
+    // Realistic cardiac heartbeat animation when active ("Dil Dhadakta Hai")
+    val heartbeatScale by infiniteTransition.animateFloat(
         initialValue = 1.0f,
-        targetValue = 1.08f,
+        targetValue = 1.38f,
         animationSpec = infiniteRepeatable(
-            animation = tween(700, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Reverse
+            animation = keyframes {
+                durationMillis = 950
+                1.0f at 0
+                1.28f at 160 using FastOutSlowInEasing // first beat (lub)
+                1.12f at 300
+                1.38f at 440 using FastOutSlowInEasing // second beat (dub)
+                1.0f at 650
+                1.0f at 950 // resting pause
+            },
+            repeatMode = RepeatMode.Restart
         ),
-        label = "pulse_scale"
+        label = "heartbeat_scale"
+    )
+
+    // Pulsing outer ripple ring for active heart
+    val heartRippleScale by infiniteTransition.animateFloat(
+        initialValue = 1.0f,
+        targetValue = 1.75f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(950, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "heart_ripple_scale"
+    )
+
+    val heartRippleAlpha by infiniteTransition.animateFloat(
+        initialValue = 0.65f,
+        targetValue = 0.0f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(950, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "heart_ripple_alpha"
     )
 
     val glowAlpha by infiniteTransition.animateFloat(
@@ -102,9 +131,24 @@ fun LiveAnimeVoiceScreen(
         label = "glow_alpha"
     )
 
+    var callSeconds by remember { mutableStateOf(0) }
+    LaunchedEffect(uiState.isAssistantModeActive) {
+        if (uiState.isAssistantModeActive) {
+            callSeconds = 0
+            while (true) {
+                delay(1000)
+                callSeconds++
+            }
+        } else {
+            callSeconds = 0
+        }
+    }
+
+    val callDurationStr = String.format("%02d:%02d", callSeconds / 60, callSeconds % 60)
+
     val latestGirlfriendMessage = uiState.messages.lastOrNull {
         it.sender == com.example.data.MessageSender.GIRLFRIEND
-    }?.text ?: "Hey ${uiState.profile.userNickname}! Tap 'Activate Assistant' to talk to me hands-free! ❤️"
+    }?.text ?: "Hey ${uiState.profile.userNickname}! Dil par tap karo aur mujhse baat karo! ❤️"
 
     Box(
         modifier = modifier
@@ -134,7 +178,7 @@ fun LiveAnimeVoiceScreen(
                 color = Color.Black.copy(alpha = 0.65f),
                 border = androidx.compose.foundation.BorderStroke(
                     1.dp,
-                    if (uiState.isAssistantModeActive) Color(0xFF4CAF50).copy(alpha = glowAlpha) else RosePrimary.copy(alpha = 0.5f)
+                    if (uiState.isAssistantModeActive) HeartRed.copy(alpha = glowAlpha) else RosePrimary.copy(alpha = 0.5f)
                 )
             ) {
                 Row(
@@ -147,19 +191,16 @@ fun LiveAnimeVoiceScreen(
                             .clip(CircleShape)
                             .background(
                                 when {
-                                    uiState.isAssistantModeActive && uiState.isListening -> HeartRed
-                                    uiState.isAssistantModeActive -> Color(0xFF4CAF50)
+                                    uiState.isAssistantModeActive -> Color(0xFF00E676)
                                     uiState.isListening -> HeartRed
-                                    else -> Color(0xFF9E9E9E)
+                                    else -> Color(0xFF4CAF50)
                                 }
                             )
                     )
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(
                         text = when {
-                            uiState.isAssistantModeActive && uiState.isListening -> "Listening... 🎙️"
-                            uiState.isAssistantModeActive && uiState.isSpeaking -> "Speaking 💋"
-                            uiState.isAssistantModeActive -> "Assistant Active 🟢"
+                            uiState.isAssistantModeActive -> "📞 In Call: $callDurationStr"
                             uiState.isSpeaking -> "Speaking 💋"
                             uiState.isListening -> "Listening... 🎙️"
                             else -> "Aria AI 🌸"
@@ -219,12 +260,12 @@ fun LiveAnimeVoiceScreen(
             }
         }
 
-        // Bottom Section: Dialogue Subtitles + Quick Action Chips + Activate Assistant Hero Control
+        // Bottom Section: Dialogue Subtitles + Quick Action Chips + Beating Heart Voice Assistant
         Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .align(Alignment.BottomCenter)
-                .padding(bottom = 12.dp, start = 14.dp, end = 14.dp),
+                .padding(bottom = 14.dp, start = 14.dp, end = 14.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             // Live Dialogue Card / Subtitles
@@ -277,7 +318,7 @@ fun LiveAnimeVoiceScreen(
 
             Spacer(modifier = Modifier.height(10.dp))
 
-            // Quick Voice Action Chips (including battery, time, flashlight, apps, games)
+            // Quick Voice Action Chips (including Play Store Install, battery, time, flashlight, games)
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -285,17 +326,17 @@ fun LiveAnimeVoiceScreen(
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 val chips = listOf(
+                    "📲 Play Store se Free Fire install karo",
+                    "📲 Play Store se BGMI download karo",
                     "🔋 Battery kitni hai?",
                     "⏰ Time kya hua?",
-                    "🔦 Flashlight on/off",
+                    "🔦 Torch on karo",
                     "🎮 Open Free Fire",
-                    "🎯 Open BGMI",
                     "💬 Open WhatsApp",
                     "💌 Send WhatsApp Hello",
                     "📸 Post Insta Story",
                     "🏃 Open Subway Surfers",
-                    "📞 Call someone",
-                    "📷 Open Camera"
+                    "📞 Call someone"
                 )
                 chips.forEach { chipText ->
                     Surface(
@@ -317,164 +358,78 @@ fun LiveAnimeVoiceScreen(
                 }
             }
 
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(14.dp))
 
-            // Continuous Hands-Free Assistant Mode Controls (Requested by User)
-            if (uiState.isAssistantModeActive) {
-                // ACTIVE STATE: Assistant is hands-free, user can talk without pressing repeatedly
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    // Pulsing Status banner
-                    Row(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(14.dp))
-                            .background(Color(0xFF1B5E20).copy(alpha = 0.75f))
-                            .border(1.dp, Color(0xFF4CAF50).copy(alpha = glowAlpha), RoundedCornerShape(14.dp))
-                            .padding(horizontal = 14.dp, vertical = 6.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(10.dp)
-                                .clip(CircleShape)
-                                .background(Color(0xFF69F0AE))
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = if (uiState.isSpeaking) "Aria is answering you... 💋" else "Hands-Free Voice Active: Speak naturally! 🎙️",
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.White
-                        )
+            // Beating Heart (Dil Dhadakta Hai) Assistant Button (Requested by User)
+            Box(
+                modifier = Modifier
+                    .size(96.dp)
+                    .clickable {
+                        if (uiState.isAssistantModeActive) {
+                            onStopAssistantMode()
+                        } else {
+                            onToggleAssistantMode()
+                        }
                     }
-
-                    Spacer(modifier = Modifier.height(10.dp))
-
-                    // Prominent Stop Assistant Button
-                    Button(
-                        onClick = onStopAssistantMode,
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = HeartRed,
-                            contentColor = Color.White
-                        ),
-                        shape = RoundedCornerShape(26.dp),
+                    .testTag("beating_heart_assistant_btn"),
+                contentAlignment = Alignment.Center
+            ) {
+                // Outer Concentric Radiating Pulse Rings when heart is beating
+                if (uiState.isAssistantModeActive) {
+                    Box(
                         modifier = Modifier
-                            .fillMaxWidth(0.85f)
-                            .height(54.dp)
-                            .scale(pulseScale)
-                            .testTag("btn_stop_assistant")
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Stop,
-                            contentDescription = "Stop Assistant",
-                            modifier = Modifier.size(24.dp)
-                        )
-                        Spacer(modifier = Modifier.width(10.dp))
-                        Text(
-                            text = "STOP ASSISTANT ⏹️",
-                            fontSize = 15.sp,
-                            fontWeight = FontWeight.ExtraBold,
-                            letterSpacing = 0.5.sp
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.height(4.dp))
-
-                    Text(
-                        text = "Or say 'Stop' / 'Band karo' to pause voice assistant",
-                        fontSize = 11.sp,
-                        color = Color.White.copy(alpha = 0.7f),
-                        textAlign = TextAlign.Center
+                            .size(76.dp)
+                            .scale(heartRippleScale)
+                            .clip(CircleShape)
+                            .background(HeartRed.copy(alpha = heartRippleAlpha * 0.4f))
                     )
                 }
-            } else {
-                // INACTIVE STATE: Hero "ACTIVATE ASSISTANT" button
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.Center,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        // Big Activate Assistant Button
-                        Button(
-                            onClick = onToggleAssistantMode,
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = Color.Transparent
-                            ),
-                            contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp),
-                            shape = RoundedCornerShape(28.dp),
-                            modifier = Modifier
-                                .weight(1f)
-                                .height(56.dp)
-                                .clip(RoundedCornerShape(28.dp))
-                                .background(
-                                    Brush.horizontalGradient(
-                                        listOf(RosePrimary, RoseSecondary, Color(0xFF9C27B0))
-                                    )
-                                )
-                                .border(2.dp, Color.White.copy(alpha = 0.8f), RoundedCornerShape(28.dp))
-                                .scale(pulseScale)
-                                .testTag("btn_activate_assistant")
-                        ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.Center
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Bolt,
-                                    contentDescription = "Activate Assistant",
-                                    tint = Color.White,
-                                    modifier = Modifier.size(24.dp)
-                                )
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text(
-                                    text = "ACTIVATE ASSISTANT 🎙️✨",
-                                    fontSize = 14.sp,
-                                    fontWeight = FontWeight.Black,
-                                    color = Color.White,
-                                    letterSpacing = 0.5.sp
-                                )
-                            }
-                        }
 
-                        Spacer(modifier = Modifier.width(10.dp))
-
-                        // Single query mic button
-                        IconButton(
-                            onClick = onToggleMic,
-                            modifier = Modifier
-                                .size(56.dp)
-                                .clip(CircleShape)
-                                .background(
-                                    if (uiState.isListening) HeartRed else Color.White.copy(alpha = 0.2f)
-                                )
-                                .border(1.5.dp, Color.White.copy(alpha = 0.6f), CircleShape)
-                                .testTag("single_mic_btn")
-                        ) {
-                            Icon(
-                                imageVector = if (uiState.isListening) Icons.Default.MicOff else Icons.Default.Mic,
-                                contentDescription = "Quick Mic",
-                                tint = Color.White,
-                                modifier = Modifier.size(26.dp)
+                // The Beating Heart Circle Button
+                Box(
+                    modifier = Modifier
+                        .size(76.dp)
+                        .scale(if (uiState.isAssistantModeActive) heartbeatScale else 1.0f)
+                        .clip(CircleShape)
+                        .background(
+                            Brush.linearGradient(
+                                colors = if (uiState.isAssistantModeActive) {
+                                    listOf(HeartRed, Color(0xFFFF1744), Color(0xFFD50000))
+                                } else {
+                                    listOf(RosePrimary, RoseSecondary, Color(0xFFC2185B))
+                                }
                             )
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(6.dp))
-
-                    Text(
-                        text = "Tap 'Activate Assistant' to talk continuously without pressing mic repeatedly!",
-                        fontSize = 11.sp,
-                        color = Color.White.copy(alpha = 0.8f),
-                        textAlign = TextAlign.Center
+                        )
+                        .border(
+                            width = 2.5.dp,
+                            color = if (uiState.isAssistantModeActive) Color.White else Color.White.copy(alpha = 0.65f),
+                            shape = CircleShape
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = if (uiState.isAssistantModeActive) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                        contentDescription = if (uiState.isAssistantModeActive) "Stop Assistant (Dil Dhadak Raha Hai)" else "Start Assistant with Heart",
+                        tint = Color.White,
+                        modifier = Modifier.size(38.dp)
                     )
                 }
             }
+
+            Spacer(modifier = Modifier.height(6.dp))
+
+            // Descriptive Subtitle
+            Text(
+                text = if (uiState.isAssistantModeActive) {
+                    "📞 Live Call Connected ($callDurationStr) • Dil Dhadak Raha Hai! Tap Heart to End Call 🛑"
+                } else {
+                    "Dil par tap karo Aria ko call karne ke liye ❤️ (Hands-free Voice Call)"
+                },
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold,
+                color = if (uiState.isAssistantModeActive) HeartRed else Color.White.copy(alpha = 0.9f),
+                textAlign = TextAlign.Center
+            )
         }
     }
 }

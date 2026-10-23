@@ -190,6 +190,19 @@ fun AnimatedGirlfriendCharacter(
                     }
                 }
 
+                // Throat / Neck vocal resonance vibration when speaking
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.TopCenter)
+                        .offset(x = 0.dp, y = screenHeight * 0.485f)
+                        .width(20.dp)
+                        .height(8.dp)
+                        .clip(RoundedCornerShape(4.dp))
+                        .background(
+                            Color(0xFFFF8A80).copy(alpha = (mouthOpeningHeight / 28f).coerceIn(0.08f, 0.32f))
+                        )
+                )
+
                 // Cute Rosy Blushing Cheek Glow
                 Box(
                     modifier = Modifier
