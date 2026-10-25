@@ -50,10 +50,50 @@ jobs:
             gradle assembleDebug --stacktrace
           fi
 
-      - name: Prepare APK for Release
+      - name: Dual Sign APK (V1 JAR + V2 + V3 Schemes) for All Android Devices
         run: |
           mkdir -p release-apks
-          cp app/build/outputs/apk/debug/*.apk release-apks/Aria-AI-Girlfriend-v1.0.apk || true
+          RAW_APK=$(find app/build/outputs/apk/debug/ -name "*.apk" | head -n 1)
+          if [ -z "$RAW_APK" ]; then
+            echo "Error: Debug APK not found!"
+            exit 1
+          fi
+          
+          TEMP_APK="temp_to_sign.apk"
+          ALIGNED_APK="temp_aligned.apk"
+          FINAL_APK="release-apks/Aria-AI-Girlfriend-v1.0.apk"
+          
+          cp "$RAW_APK" "$TEMP_APK"
+          zip -d "$TEMP_APK" "META-INF/*.SF" "META-INF/*.RSA" "META-INF/*.DSA" "META-INF/MANIFEST.MF" 2>/dev/null || true
+          
+          # 1. Sign v1 with jarsigner
+          jarsigner -verbose -sigalg SHA256withRSA -digestalg SHA-256 \
+            -keystore debug.keystore -storepass android -keypass android \
+            "$TEMP_APK" androiddebugkey
+            
+          # 2. Locate zipalign and apksigner in Android SDK
+          BUILD_TOOLS_DIR=$(find $ANDROID_HOME/build-tools/ -maxdepth 1 -mindepth 1 | sort -V | tail -n 1)
+          ZIPALIGN="$BUILD_TOOLS_DIR/zipalign"
+          APKSIGNER="$BUILD_TOOLS_DIR/apksigner"
+          
+          # Zipalign 4-byte
+          $ZIPALIGN -v -p 4 "$TEMP_APK" "$ALIGNED_APK"
+          
+          # 3. Sign v2 and v3
+          $APKSIGNER sign \
+            --ks debug.keystore \
+            --ks-pass pass:android \
+            --key-pass pass:android \
+            --ks-key-alias androiddebugkey \
+            --v1-signing-enabled true \
+            --v2-signing-enabled true \
+            --v3-signing-enabled true \
+            --out "$FINAL_APK" \
+            "$ALIGNED_APK"
+            
+          # 4. Verify universal compatibility
+          $APKSIGNER verify --verbose --min-sdk-version 23 "$FINAL_APK"
+          rm -f "$TEMP_APK" "$ALIGNED_APK"
 
       - name: Upload APK to GitHub Actions Artifacts
         uses: actions/upload-artifact@v4
@@ -68,14 +108,22 @@ jobs:
         continue-on-error: true
         with:
           tag_name: v1.0.0
-          name: "Aria AI Girlfriend App v1.0.0"
+          name: "Aria AI Girlfriend App v1.0.0 (Universal Compatible)"
           draft: false
           prerelease: false
           make_latest: true
           body: |
-            ### 💖 Aria: AI Girlfriend Companion & Assistant
+            ### 💖 Aria: AI Girlfriend Companion & Assistant (Universal Compatible APK)
             
-            Aapka Android APK taiyar hai! Niche diye gaye link se direct APK download karke apne phone me install kar sakte hain.
+            Aapka Android APK taiyar hai! Yeh APK Android 7 se lekar Android 17+ tak sabhi mobile devices par bina kisi "Package Invalid" error ke smoothly install hoga.
+            
+            **✨ Key Features:**
+            - 📞 **Continuous Non-Stop Calling Mode**: Mike kabhi band nahi hota, jaise phone call par baat karte hain.
+            - 📢 **Loud Voice Booster**: Clear aur high-volume speech output (speakerphone guidance stream).
+            - 🌸 **Hinata Waifu Voice & Persona**: Soft and sweet anime companion.
+            - 📲 **Play Store Voice Commands**: "Play Store se koi bhi app install karo" bolne par instant open.
+            - 🔑 **Built-in Auto API Key**: Pre-configured setup with secure hidden panel.
+            - 📱 **Universal Installation**: Dual V1 + V2 + V3 Signed for 100% Android devices compatibility.
             
             **Direct Download:** `Aria-AI-Girlfriend-v1.0.apk`
           files: release-apks/Aria-AI-Girlfriend-v1.0.apk
