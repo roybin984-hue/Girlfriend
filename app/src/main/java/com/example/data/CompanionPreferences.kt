@@ -16,7 +16,7 @@ class CompanionPreferences(context: Context) {
         set(value) = prefs.edit().putString("user_nickname", value).apply()
 
     var voicePitch: Float
-        get() = prefs.getFloat("voice_pitch", 1.25f)
+        get() = prefs.getFloat("voice_pitch", 1.02f)
         set(value) = prefs.edit().putFloat("voice_pitch", value).apply()
 
     var voiceSpeed: Float
@@ -24,7 +24,7 @@ class CompanionPreferences(context: Context) {
         set(value) = prefs.edit().putFloat("voice_speed", value).apply()
 
     var voicePreset: String
-        get() = prefs.getString("voice_preset", "Sweet & Caring") ?: "Sweet & Caring"
+        get() = prefs.getString("voice_preset", "Natural Sweet ❤️") ?: "Natural Sweet ❤️"
         set(value) = prefs.edit().putString("voice_preset", value).apply()
 
     var autoSpeak: Boolean

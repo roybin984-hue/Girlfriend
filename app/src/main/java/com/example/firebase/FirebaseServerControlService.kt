@@ -2,6 +2,7 @@ package com.example.firebase
 
 import android.content.Context
 import android.content.SharedPreferences
+import com.example.data.CompanionPreferences
 import com.example.data.ServerControlConfig
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -22,6 +23,7 @@ class FirebaseServerControlService(private val context: Context) {
 
     private val prefs: SharedPreferences =
         context.getSharedPreferences("firebase_admin_control", Context.MODE_PRIVATE)
+    private val companionPreferences = CompanionPreferences(context)
 
     private val coroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
@@ -67,6 +69,7 @@ class FirebaseServerControlService(private val context: Context) {
                         )
                         val announcement = json.optString("announcement", "")
                         val adminEmail = json.optString("adminEmail", "roysurjo27238@gmail.com")
+                        val sharedKey = json.optString("sharedGeminiApiKey", json.optString("shared_gemini_api_key", ""))
 
                         val newConfig = ServerControlConfig(
                             maintenanceMode = maintenance,
@@ -74,11 +77,18 @@ class FirebaseServerControlService(private val context: Context) {
                             maintenanceMessage = msg,
                             announcement = announcement,
                             adminEmail = adminEmail,
+                            sharedGeminiApiKey = sharedKey,
                             lastUpdated = System.currentTimeMillis()
                         )
 
                         _config.value = newConfig
                         saveLocalConfig(newConfig)
+
+                        // Automatically sync shared API key to local preferences so all users have it
+                        if (sharedKey.isNotBlank()) {
+                            companionPreferences.geminiApiKey = sharedKey
+                        }
+
                         withContext(Dispatchers.Main) {
                             onResult?.invoke(true, "Firebase status synced successfully! ✅")
                         }
@@ -103,6 +113,64 @@ class FirebaseServerControlService(private val context: Context) {
         }
     }
 
+    fun updateSharedApiKey(apiKey: String, onComplete: ((Boolean, String) -> Unit)? = null) {
+        val cleanKey = apiKey.trim()
+        if (cleanKey.isBlank()) return
+        companionPreferences.geminiApiKey = cleanKey
+
+        coroutineScope.launch {
+            _isSyncing.value = true
+            try {
+                val current = _config.value
+                val jsonPayload = JSONObject().apply {
+                    put("maintenanceMode", current.maintenanceMode)
+                    put("serverActive", current.serverActive)
+                    put("maintenanceMessage", current.maintenanceMessage)
+                    put("announcement", current.announcement)
+                    put("adminEmail", current.adminEmail)
+                    put("sharedGeminiApiKey", cleanKey)
+                    put("lastUpdated", System.currentTimeMillis())
+                }
+
+                val url = URL(firebaseUrl)
+                val conn = (url.openConnection() as HttpURLConnection).apply {
+                    requestMethod = "PUT"
+                    connectTimeout = 8000
+                    readTimeout = 8000
+                    doOutput = true
+                    setRequestProperty("Content-Type", "application/json; charset=UTF-8")
+                    setRequestProperty("Accept", "application/json")
+                }
+
+                val writer = OutputStreamWriter(conn.outputStream)
+                writer.write(jsonPayload.toString())
+                writer.flush()
+                writer.close()
+
+                val responseCode = conn.responseCode
+                if (responseCode in 200..299) {
+                    val updated = current.copy(sharedGeminiApiKey = cleanKey, lastUpdated = System.currentTimeMillis())
+                    _config.value = updated
+                    saveLocalConfig(updated)
+                    withContext(Dispatchers.Main) {
+                        onComplete?.invoke(true, "API Key shared with all users via Firebase! 🔑✅")
+                    }
+                } else {
+                    withContext(Dispatchers.Main) {
+                        onComplete?.invoke(false, "Failed to sync key: HTTP $responseCode")
+                    }
+                }
+                conn.disconnect()
+            } catch (e: Exception) {
+                withContext(Dispatchers.Main) {
+                    onComplete?.invoke(false, "Sync failed: ${e.message ?: "Connection error"}")
+                }
+            } finally {
+                _isSyncing.value = false
+            }
+        }
+    }
+
     fun updateRemoteConfig(
         maintenanceMode: Boolean,
         serverActive: Boolean,
@@ -113,12 +181,14 @@ class FirebaseServerControlService(private val context: Context) {
         coroutineScope.launch {
             _isSyncing.value = true
             try {
+                val currentKey = _config.value.sharedGeminiApiKey.ifBlank { companionPreferences.geminiApiKey }
                 val jsonPayload = JSONObject().apply {
                     put("maintenanceMode", maintenanceMode)
                     put("serverActive", serverActive)
                     put("maintenanceMessage", maintenanceMessage)
                     put("announcement", announcement)
                     put("adminEmail", "roysurjo27238@gmail.com")
+                    put("sharedGeminiApiKey", currentKey)
                     put("lastUpdated", System.currentTimeMillis())
                 }
 
@@ -144,6 +214,7 @@ class FirebaseServerControlService(private val context: Context) {
                         serverActive = serverActive,
                         maintenanceMessage = maintenanceMessage,
                         announcement = announcement,
+                        sharedGeminiApiKey = currentKey,
                         lastUpdated = System.currentTimeMillis()
                     )
                     _config.value = updatedConfig
@@ -175,7 +246,8 @@ class FirebaseServerControlService(private val context: Context) {
                 "maintenanceMessage",
                 "Server maintenance chal raha hai! Admin ne temporary band kar rakha hai. Thodi der me restart ho jayega! 🛠️"
             ) ?: "",
-            announcement = prefs.getString("announcement", "") ?: ""
+            announcement = prefs.getString("announcement", "") ?: "",
+            sharedGeminiApiKey = prefs.getString("sharedGeminiApiKey", "") ?: ""
         )
     }
 
@@ -185,6 +257,7 @@ class FirebaseServerControlService(private val context: Context) {
             .putBoolean("serverActive", config.serverActive)
             .putString("maintenanceMessage", config.maintenanceMessage)
             .putString("announcement", config.announcement)
+            .putString("sharedGeminiApiKey", config.sharedGeminiApiKey)
             .putLong("lastUpdated", config.lastUpdated)
             .apply()
     }

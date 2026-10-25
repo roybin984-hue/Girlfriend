@@ -31,6 +31,7 @@ data class ServerControlConfig(
     val maintenanceMessage: String = "Server maintenance chal raha hai! Admin ne temporary band kar rakha hai. Thodi der me restart ho jayega! 🛠️",
     val announcement: String = "",
     val adminEmail: String = "roysurjo27238@gmail.com",
+    val sharedGeminiApiKey: String = "",
     val lastUpdated: Long = System.currentTimeMillis()
 )
 
@@ -53,10 +54,10 @@ data class ChatMessage(
 )
 
 data class VoiceProfile(
-    val pitch: Float = 1.25f, // 1.0 = normal, 1.25 = cute/sweet girlfriend
+    val pitch: Float = 1.02f, // 1.02 = natural human sweet girlfriend voice (not robotic)
     val speed: Float = 1.0f,
     val personaName: String = "Sweet & Caring",
-    val description: String = "Loving, warm, and cute voice tone",
+    val description: String = "Loving, warm, natural human voice tone",
     val languageCode: String = "en-US"
 )
 
@@ -74,9 +75,9 @@ data class CompanionProfile(
     val relationshipLevel: Int = 1,
     val affectionXp: Int = 120,
     val autoSpeak: Boolean = true,
-    val voicePitch: Float = 1.25f,
+    val voicePitch: Float = 1.02f,
     val voiceSpeed: Float = 1.0f,
-    val voicePreset: String = "Sweet & Caring",
+    val voicePreset: String = "Natural Sweet ❤️",
     val loudVoiceEnabled: Boolean = true,
     val voiceVolumeLevel: Float = 1.0f
 )

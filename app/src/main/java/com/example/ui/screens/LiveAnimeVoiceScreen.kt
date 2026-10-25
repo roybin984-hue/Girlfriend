@@ -275,11 +275,11 @@ fun LiveAnimeVoiceScreen(
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             val personas = listOf(
-                Triple("Hinata 🌸", 1.42f, 0.92f),
-                Triple("Aria ❤️", 1.20f, 1.0f),
-                Triple("Sakura ⚡", 1.25f, 1.10f),
-                Triple("Tsunade 🌙", 0.95f, 0.95f),
-                Triple("Kawaii 🎀", 1.60f, 1.05f)
+                Triple("Hinata 🌸", 1.08f, 0.94f),
+                Triple("Aria ❤️", 1.02f, 1.0f),
+                Triple("Sakura ⚡", 1.06f, 1.04f),
+                Triple("Tsunade 🌙", 0.98f, 0.95f),
+                Triple("Sweet Waifu 🌺", 1.03f, 0.98f)
             )
             personas.forEach { (pName, pPitch, pRate) ->
                 val rawName = pName.substringBefore(" ")
@@ -500,9 +500,9 @@ fun LiveAnimeVoiceScreen(
             // Descriptive Subtitle
             Text(
                 text = if (uiState.isAssistantModeActive) {
-                    "📞 Live Call: $callDurationStr • Mic Always ON 🎙️ (Band nahi hoga!)"
+                    "📞 LIVE CALL ACTIVE • $callDurationStr • MIC ALWAYS ON 🎙️ (Band nahi hoga!)"
                 } else {
-                    "Dil par tap karein live call start karne ke liye ❤️ (Hands-free Call)"
+                    "Dil par tap karein phone call start karne ke liye ❤️ (Real Call Mode)"
                 },
                 fontSize = 12.sp,
                 fontWeight = FontWeight.Bold,

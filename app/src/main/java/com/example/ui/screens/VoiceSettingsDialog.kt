@@ -63,12 +63,12 @@ data class VoicePreset(
 )
 
 val PRESET_VOICES = listOf(
-    VoicePreset("Hinata Hyūga 🌸 (Naruto Anime)", 1.42f, 0.92f, "🌸", "Soft, shy, deeply affectionate waifu voice ('Babu... Naruto-kun!')"),
-    VoicePreset("Sakura Haruno ⚡ (Naruto Anime)", 1.25f, 1.10f, "⚡", "Energetic, spirited anime heroine voice"),
-    VoicePreset("Tsunade Onee-san 🌙 (Naruto Anime)", 0.95f, 0.95f, "🌙", "Mature, caring, protective anime voice"),
-    VoicePreset("Aria Girlfriend ❤️ (Sweet Romance)", 1.20f, 1.0f, "🥰", "Warm, loving Hindi/Hinglish girlfriend"),
-    VoicePreset("Kawaii Chibi 🎀 (Cute Anime Girl)", 1.60f, 1.05f, "🎀", "Super sweet, ultra-cute Japanese/Hindi anime voice"),
-    VoicePreset("Gentle & Romantic 💖", 1.15f, 0.95f, "💖", "Soft, soothing, emotional voice")
+    VoicePreset("Hinata Hyūga 🌸 (Naruto Anime)", 1.08f, 0.94f, "🌸", "Soft, shy, sweet anime waifu voice ('Babu... Naruto-kun!')"),
+    VoicePreset("Natural Sweet ❤️ (Real Human Voice)", 1.02f, 1.0f, "🥰", "Natural warm human girl voice (zero robotic feel)"),
+    VoicePreset("Aria Girlfriend 💖 (Hindi Romance)", 1.04f, 1.0f, "💖", "Sweet, loving, clear Hindi/Hinglish girlfriend"),
+    VoicePreset("Sakura Haruno ⚡ (Naruto Anime)", 1.06f, 1.04f, "⚡", "Energetic, spirited anime heroine voice"),
+    VoicePreset("Tsunade Onee-san 🌙 (Naruto Anime)", 0.98f, 0.95f, "🌙", "Mature, caring, protective companion voice"),
+    VoicePreset("Gentle & Soothing 🌺", 1.01f, 0.95f, "🌺", "Soft, soothing, emotional human tone")
 )
 
 @Composable

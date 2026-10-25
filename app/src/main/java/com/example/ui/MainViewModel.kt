@@ -61,7 +61,15 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         // Collect server control config from Firebase Realtime Database
         viewModelScope.launch {
             serverControlService.config.collect { config ->
-                _uiState.value = _uiState.value.copy(serverConfig = config)
+                val activeKey = if (config.sharedGeminiApiKey.isNotBlank()) {
+                    config.sharedGeminiApiKey
+                } else {
+                    _uiState.value.geminiApiKey
+                }
+                _uiState.value = _uiState.value.copy(
+                    serverConfig = config,
+                    geminiApiKey = activeKey
+                )
             }
         }
         viewModelScope.launch {
@@ -328,9 +336,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         preferences.geminiApiKey = cleanKey
         _uiState.value = _uiState.value.copy(geminiApiKey = cleanKey)
         if (cleanKey.isNotBlank()) {
-            showToast("Google AI Studio API Key saved successfully! 🚀")
+            serverControlService.updateSharedApiKey(cleanKey) { success, msg ->
+                showToast(msg)
+            }
+            showToast("API Key saved & synced for all users! 🔑✨")
         } else {
-            showToast("API Key cleared. Using local girlfriend engine.")
+            showToast("API Key cleared. Using local engine.")
         }
     }
 
