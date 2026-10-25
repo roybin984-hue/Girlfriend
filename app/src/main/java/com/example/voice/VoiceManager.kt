@@ -2,6 +2,8 @@ package com.example.voice
 
 import android.content.Context
 import android.content.Intent
+import android.media.AudioAttributes
+import android.media.AudioManager
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -35,6 +37,10 @@ class VoiceManager(private val context: Context) : TextToSpeech.OnInitListener {
 
     private val _speechError = MutableStateFlow<String?>(null)
     val speechError: StateFlow<String?> = _speechError.asStateFlow()
+
+    private val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
+    private var isLoudVoiceBoostEnabled: Boolean = true
+    private var userVolumeLevel: Float = 1.0f
 
     private var currentPitch: Float = 1.25f
     private var currentRate: Float = 1.0f
@@ -147,6 +153,13 @@ class VoiceManager(private val context: Context) : TextToSpeech.OnInitListener {
     override fun onInit(status: Int) {
         if (status == TextToSpeech.SUCCESS) {
             isTtsReady = true
+            try {
+                val audioAttributes = AudioAttributes.Builder()
+                    .setUsage(AudioAttributes.USAGE_ASSISTANCE_NAVIGATION_GUIDANCE)
+                    .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
+                    .build()
+                tts?.setAudioAttributes(audioAttributes)
+            } catch (_: Exception) {}
             tts?.language = Locale.getDefault()
             tts?.setPitch(currentPitch)
             tts?.setSpeechRate(currentRate)
@@ -276,7 +289,12 @@ class VoiceManager(private val context: Context) : TextToSpeech.OnInitListener {
         }
     }
 
-    fun speak(text: String, pitch: Float = currentPitch, rate: Float = currentRate) {
+    fun speak(
+        text: String,
+        pitch: Float = currentPitch,
+        rate: Float = currentRate,
+        volumeLevel: Float = userVolumeLevel
+    ) {
         if (!isTtsReady) return
         try {
             speechRecognizer?.cancel()
@@ -288,6 +306,20 @@ class VoiceManager(private val context: Context) : TextToSpeech.OnInitListener {
         currentRate = rate
         tts?.setPitch(pitch)
         tts?.setSpeechRate(rate)
+
+        // Automatically boost device media volume so the voice is loud, powerful, and clear!
+        if (isLoudVoiceBoostEnabled) {
+            try {
+                audioManager?.let { am ->
+                    val maxMusic = am.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
+                    val currentMusic = am.getStreamVolume(AudioManager.STREAM_MUSIC)
+                    val targetVol = (maxMusic * 0.90f).toInt().coerceAtLeast(1)
+                    if (currentMusic < targetVol) {
+                        am.setStreamVolume(AudioManager.STREAM_MUSIC, targetVol, 0)
+                    }
+                }
+            } catch (_: Exception) {}
+        }
 
         // Multilingual Detection: Auto-switch TTS voice to Hindi, Bengali, or English
         try {
@@ -318,7 +350,13 @@ class VoiceManager(private val context: Context) : TextToSpeech.OnInitListener {
         // Clean emojis and markdown from text before TTS for smooth voice
         val cleanText = cleanTextForSpeech(text)
         val utteranceId = "Aria_${System.currentTimeMillis()}"
-        tts?.speak(cleanText, TextToSpeech.QUEUE_FLUSH, null, utteranceId)
+
+        // Set volume to 1.0f (maximum loud audio output)
+        val params = Bundle().apply {
+            putFloat(TextToSpeech.Engine.KEY_PARAM_VOLUME, volumeLevel.coerceIn(0.2f, 1.0f))
+            putInt(TextToSpeech.Engine.KEY_PARAM_STREAM, AudioManager.STREAM_MUSIC)
+        }
+        tts?.speak(cleanText, TextToSpeech.QUEUE_FLUSH, params, utteranceId)
     }
 
     fun stopSpeaking() {
@@ -328,9 +366,11 @@ class VoiceManager(private val context: Context) : TextToSpeech.OnInitListener {
         _isSpeaking.value = false
     }
 
-    fun updateVoiceSettings(pitch: Float, rate: Float) {
+    fun updateVoiceSettings(pitch: Float, rate: Float, loudEnabled: Boolean = true, volumeLevel: Float = 1.0f) {
         currentPitch = pitch
         currentRate = rate
+        isLoudVoiceBoostEnabled = loudEnabled
+        userVolumeLevel = volumeLevel
         if (isTtsReady) {
             tts?.setPitch(pitch)
             tts?.setSpeechRate(rate)

@@ -76,5 +76,7 @@ data class CompanionProfile(
     val autoSpeak: Boolean = true,
     val voicePitch: Float = 1.25f,
     val voiceSpeed: Float = 1.0f,
-    val voicePreset: String = "Sweet & Caring"
+    val voicePreset: String = "Sweet & Caring",
+    val loudVoiceEnabled: Boolean = true,
+    val voiceVolumeLevel: Float = 1.0f
 )

@@ -76,6 +76,8 @@ fun VoiceProfileScreen(
     var rate by remember(profile.voiceSpeed) { mutableFloatStateOf(profile.voiceSpeed) }
     var selectedPreset by remember(profile.voicePreset) { mutableStateOf(profile.voicePreset) }
     var autoSpeak by remember(profile.autoSpeak) { mutableStateOf(profile.autoSpeak) }
+    var loudVoiceEnabled by remember(profile.loudVoiceEnabled) { mutableStateOf(profile.loudVoiceEnabled) }
+    var voiceVolumeLevel by remember(profile.voiceVolumeLevel) { mutableFloatStateOf(profile.voiceVolumeLevel) }
     var apiKeyInput by remember(geminiApiKey) { mutableStateOf(geminiApiKey) }
     var adminTapCount by remember { mutableStateOf(0) }
 
@@ -274,14 +276,14 @@ fun VoiceProfileScreen(
                 // Test Voice Button
                 OutlinedButton(
                     onClick = {
-                        onTestVoice(pitch, rate, "Hey $nickname! Do you like my new voice? I love talking with you! ❤️")
+                        onTestVoice(pitch, rate, "Haan $nickname! Meri aawaz ab bilkul saaf aur loud aa rahi hai na? ❤️🔊")
                     },
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(12.dp)
                 ) {
                     Icon(Icons.Default.PlayArrow, contentDescription = null, tint = RosePrimary)
                     Spacer(modifier = Modifier.width(6.dp))
-                    Text("Test This Voice", color = RosePrimary, fontWeight = FontWeight.Bold)
+                    Text("Test This Voice 🔊", color = RosePrimary, fontWeight = FontWeight.Bold)
                 }
 
                 Spacer(modifier = Modifier.height(14.dp))
@@ -311,6 +313,51 @@ fun VoiceProfileScreen(
                         colors = SwitchDefaults.colors(checkedThumbColor = Color.White, checkedTrackColor = RosePrimary)
                     )
                 }
+
+                Spacer(modifier = Modifier.height(14.dp))
+
+                // Loud Voice Booster toggle (User requested: "voice loudly aana chahie")
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Loud Voice Booster 🔊",
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Text(
+                            text = "Speaker volume automatically boost karein taaki aawaz tez aur saaf aaye",
+                            fontSize = 11.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Switch(
+                        checked = loudVoiceEnabled,
+                        onCheckedChange = { loudVoiceEnabled = it },
+                        colors = SwitchDefaults.colors(checkedThumbColor = Color.White, checkedTrackColor = RosePrimary)
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                // Speech Volume Slider
+                Text(
+                    text = "Awaaz Ki Loudness (Volume): ${(voiceVolumeLevel * 100).toInt()}% 📢",
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Slider(
+                    value = voiceVolumeLevel,
+                    onValueChange = { voiceVolumeLevel = it },
+                    valueRange = 0.4f..1.0f,
+                    colors = SliderDefaults.colors(thumbColor = RosePrimary, activeTrackColor = RosePrimary)
+                )
             }
         }
 
@@ -431,7 +478,9 @@ fun VoiceProfileScreen(
                         voicePitch = pitch,
                         voiceSpeed = rate,
                         voicePreset = selectedPreset,
-                        autoSpeak = autoSpeak
+                        autoSpeak = autoSpeak,
+                        loudVoiceEnabled = loudVoiceEnabled,
+                        voiceVolumeLevel = voiceVolumeLevel
                     )
                 )
             },

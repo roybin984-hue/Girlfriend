@@ -208,11 +208,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun speakAloud(text: String) {
         val prof = _uiState.value.profile
-        voiceManager.speak(text, prof.voicePitch, prof.voiceSpeed)
+        voiceManager.speak(text, prof.voicePitch, prof.voiceSpeed, prof.voiceVolumeLevel)
     }
 
-    fun testVoice(pitch: Float, rate: Float, text: String) {
-        voiceManager.speak(text, pitch, rate)
+    fun testVoice(pitch: Float, rate: Float, text: String, volume: Float = 1.0f) {
+        voiceManager.speak(text, pitch, rate, volume)
     }
 
     fun saveProfile(newProfile: CompanionProfile) {
@@ -222,9 +222,16 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         preferences.voiceSpeed = newProfile.voiceSpeed
         preferences.voicePreset = newProfile.voicePreset
         preferences.autoSpeak = newProfile.autoSpeak
-        voiceManager.updateVoiceSettings(newProfile.voicePitch, newProfile.voiceSpeed)
+        preferences.loudVoiceEnabled = newProfile.loudVoiceEnabled
+        preferences.voiceVolumeLevel = newProfile.voiceVolumeLevel
+        voiceManager.updateVoiceSettings(
+            pitch = newProfile.voicePitch,
+            rate = newProfile.voiceSpeed,
+            loudEnabled = newProfile.loudVoiceEnabled,
+            volumeLevel = newProfile.voiceVolumeLevel
+        )
         _uiState.value = _uiState.value.copy(profile = newProfile)
-        showToast("Voice & profile saved! ❤️")
+        showToast("Voice & profile saved! ❤️ (Loud & Clear)")
     }
 
     fun selectCharacterPersona(name: String, pitch: Float, rate: Float) {

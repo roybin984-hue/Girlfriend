@@ -64,6 +64,14 @@ class CompanionPreferences(context: Context) {
         get() = prefs.getString("gemini_api_key", "") ?: ""
         set(value) = prefs.edit().putString("gemini_api_key", value.trim()).apply()
 
+    var loudVoiceEnabled: Boolean
+        get() = prefs.getBoolean("loud_voice_enabled", true)
+        set(value) = prefs.edit().putBoolean("loud_voice_enabled", value).apply()
+
+    var voiceVolumeLevel: Float
+        get() = prefs.getFloat("voice_volume_level", 1.0f)
+        set(value) = prefs.edit().putFloat("voice_volume_level", value).apply()
+
     fun getProfile(): CompanionProfile {
         return CompanionProfile(
             name = companionName,
@@ -73,7 +81,9 @@ class CompanionPreferences(context: Context) {
             voicePreset = voicePreset,
             autoSpeak = autoSpeak,
             relationshipLevel = relationshipLevel,
-            affectionXp = affectionXp
+            affectionXp = affectionXp,
+            loudVoiceEnabled = loudVoiceEnabled,
+            voiceVolumeLevel = voiceVolumeLevel
         )
     }
 }
