@@ -35,6 +35,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
@@ -62,8 +63,10 @@ import com.example.ui.theme.RosePrimary
 @Composable
 fun VoiceProfileScreen(
     profile: CompanionProfile,
+    geminiApiKey: String,
     onSaveProfile: (CompanionProfile) -> Unit,
     onTestVoice: (pitch: Float, rate: Float, text: String) -> Unit,
+    onSaveApiKey: (String) -> Unit,
     onOpenAdminPanel: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
@@ -73,6 +76,8 @@ fun VoiceProfileScreen(
     var rate by remember(profile.voiceSpeed) { mutableFloatStateOf(profile.voiceSpeed) }
     var selectedPreset by remember(profile.voicePreset) { mutableStateOf(profile.voicePreset) }
     var autoSpeak by remember(profile.autoSpeak) { mutableStateOf(profile.autoSpeak) }
+    var apiKeyInput by remember(geminiApiKey) { mutableStateOf(geminiApiKey) }
+    var adminTapCount by remember { mutableStateOf(0) }
 
     Column(
         modifier = modifier
@@ -194,6 +199,10 @@ fun VoiceProfileScreen(
                                 selectedPreset = preset.name
                                 pitch = preset.pitch
                                 rate = preset.rate
+                                if (preset.name.contains("Hinata")) name = "Hinata"
+                                else if (preset.name.contains("Sakura")) name = "Sakura"
+                                else if (preset.name.contains("Tsunade")) name = "Tsunade"
+                                else if (preset.name.contains("Aria")) name = "Aria"
                             },
                         shape = RoundedCornerShape(12.dp),
                         colors = CardDefaults.cardColors(
@@ -347,6 +356,72 @@ fun VoiceProfileScreen(
 
         Spacer(modifier = Modifier.height(20.dp))
 
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // Google AI Studio API Key Card: Completely hidden if already set and active
+        if (geminiApiKey.isBlank() || geminiApiKey == "MY_GEMINI_API_KEY") {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(20.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                )
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "Google AI Studio API Key 🔑",
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Surface(
+                            shape = RoundedCornerShape(12.dp),
+                            color = Color.Gray.copy(alpha = 0.2f)
+                        ) {
+                            Text(
+                                text = "Setup Required ⚪",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.Gray,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                            )
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "Apni Google AI Studio Gemini API key paste karke save karein. Save karne ke baad ye section automatic hide ho jayega!",
+                        fontSize = 11.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(modifier = Modifier.height(10.dp))
+                    OutlinedTextField(
+                        value = apiKeyInput,
+                        onValueChange = { apiKeyInput = it },
+                        placeholder = { Text("Paste AI Studio API Key...", fontSize = 12.sp) },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp)
+                    )
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Button(
+                        onClick = { onSaveApiKey(apiKeyInput) },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = RosePrimary)
+                    ) {
+                        Text("Save & Activate API Key 💾", fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+            Spacer(modifier = Modifier.height(16.dp))
+        }
+
+        // Save All Settings Button
         Button(
             onClick = {
                 onSaveProfile(
@@ -370,22 +445,23 @@ fun VoiceProfileScreen(
             Text("Save Settings ❤️", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = Color.White)
         }
 
-        Spacer(modifier = Modifier.height(14.dp))
+        Spacer(modifier = Modifier.height(16.dp))
 
-        // Admin & Firebase Server Control Button
-        OutlinedButton(
-            onClick = onOpenAdminPanel,
+        // Hidden Admin Panel Access: Secret 5-tap on version label (completely hidden from normal users)
+        Text(
+            text = "Aria AI Girlfriend • Version 1.0.0",
+            fontSize = 12.sp,
+            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
             modifier = Modifier
-                .fillMaxWidth()
-                .height(48.dp)
-                .testTag("open_admin_panel_btn"),
-            shape = RoundedCornerShape(14.dp),
-            border = androidx.compose.foundation.BorderStroke(1.dp, RosePrimary.copy(alpha = 0.5f))
-        ) {
-            Icon(Icons.Default.Security, contentDescription = null, tint = RosePrimary)
-            Spacer(modifier = Modifier.width(8.dp))
-            Text("Firebase Admin & Server Control 🛡️", color = RosePrimary, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
-        }
+                .clickable {
+                    adminTapCount++
+                    if (adminTapCount >= 5) {
+                        adminTapCount = 0
+                        onOpenAdminPanel()
+                    }
+                }
+                .padding(8.dp)
+        )
 
         Spacer(modifier = Modifier.height(24.dp))
     }

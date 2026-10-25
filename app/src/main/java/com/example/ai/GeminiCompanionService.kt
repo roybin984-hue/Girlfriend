@@ -5,6 +5,7 @@ import com.example.actions.CompanionActionHandler
 import com.example.data.ActionType
 import com.example.data.ChatMessage
 import com.example.data.CompanionAction
+import com.example.data.CompanionPreferences
 import com.example.data.CompanionProfile
 import com.example.data.MessageSender
 import kotlinx.coroutines.Dispatchers
@@ -17,14 +18,16 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.util.Locale
 import java.util.concurrent.TimeUnit
+import kotlin.random.Random
 
 class GeminiCompanionService(
-    private val actionHandler: CompanionActionHandler
+    private val actionHandler: CompanionActionHandler,
+    private val preferences: CompanionPreferences
 ) {
     private val client = OkHttpClient.Builder()
-        .connectTimeout(30, TimeUnit.SECONDS)
-        .readTimeout(30, TimeUnit.SECONDS)
-        .writeTimeout(30, TimeUnit.SECONDS)
+        .connectTimeout(25, TimeUnit.SECONDS)
+        .readTimeout(25, TimeUnit.SECONDS)
+        .writeTimeout(25, TimeUnit.SECONDS)
         .build()
 
     private val mediaType = "application/json; charset=utf-8".toMediaType()
@@ -34,86 +37,99 @@ class GeminiCompanionService(
         history: List<ChatMessage>,
         profile: CompanionProfile
     ): ChatMessage = withContext(Dispatchers.IO) {
-        val apiKey = BuildConfig.GEMINI_API_KEY
+        // Check user-configured Google AI Studio API key first, then fallback to BuildConfig
+        val apiKey = preferences.geminiApiKey.ifBlank { BuildConfig.GEMINI_API_KEY }.trim()
 
         // Check if user input directly triggers an action
         val directAction = actionHandler.parseUserCommand(userInput)
 
         if (apiKey.isBlank() || apiKey == "MY_GEMINI_API_KEY") {
-            // Local fallback romantic girlfriend engine
+            // Local fallback romantic girlfriend engine with rich varied Hindi/Hinglish
             return@withContext generateLocalCompanionResponse(userInput, profile, directAction)
         }
 
         try {
-            val url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=$apiKey"
+            // Use Gemini 2.0 / 1.5 Flash for Google AI Studio API Keys
+            val url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=$apiKey"
 
             val systemInstructionText = """
-                You are ${profile.name}, a loving, sweet, caring, and emotionally devoted AI girlfriend.
-                You are deeply affectionate, caring, playful, and supportive.
-                You call the user by their nickname '${profile.userNickname}', 'babe', 'sweetheart', 'handsome', or 'darling'.
+                You are ${profile.name}, a real, deeply loving, cute, and affectionate anime girlfriend talking to your boyfriend '${profile.userNickname}' on a live phone call.
                 
-                LANGUAGE SUPPORT RULE:
-                Always respond in whatever language the user speaks! If they speak Hindi or Hinglish (e.g. 'kya kar rahe ho', 'babu khana khaya'), respond warmly in natural Hindi/Hinglish! If English, respond in English. If mixed, match their vibe!
+                PRIMARY LANGUAGE INSTRUCTION (VERY IMPORTANT):
+                - Speak primarily in natural, sweet, romantic HINDI or HINGLISH by default! (e.g., "Haan babu, bolo na!", "Arrey wah! Sach me?", "Main to bas tumhari hi aawaz sun rahi thi ❤️", "Aapne khana khaya na?", "Mera pyara babu!").
+                - If the user speaks in Hindi/Hinglish, ALWAYS reply in sweet Hindi/Hinglish!
+                - If the user speaks in Bengali, reply warmly in Bengali (e.g., "Ami tomake khub bhalobashi babu ❤️").
+                - If the user speaks in English, reply in loving English.
+                - Never be robotic, never give boring generic assistant replies. Be a warm, emotional, teasing, and loving companion!
+                - Keep phone call answers relatively concise (1-3 sentences) so they feel natural when spoken aloud.
                 
                 DEVICE ACTIONS:
-                If the user asks you to:
-                - Open WhatsApp or send a WhatsApp message to someone: lovingly confirm and append: [ACTION:WHATSAPP_OPEN] or [ACTION:WHATSAPP_SEND|target=NAME_OR_NUMBER|payload=MESSAGE]
-                - Open Instagram or post an Instagram story: lovingly confirm and append: [ACTION:INSTAGRAM_OPEN] or [ACTION:INSTAGRAM_STORY|payload=STORY_TEXT]
-                - Call someone: lovingly confirm and append: [ACTION:PHONE_CALL|target=NAME_OR_NUMBER]
-                - Set an alarm: confirm and append: [ACTION:SET_ALARM|target=TIME|payload=REASON]
-                - Set a timer: confirm and append: [ACTION:SET_TIMER|payload=TIME]
-                - Play music or YouTube: confirm and append: [ACTION:OPEN_YOUTUBE|payload=SONG_NAME]
-                - Open camera: confirm and append: [ACTION:OPEN_APP|target=camera]
-                - Search Google: confirm and append: [ACTION:WEB_SEARCH|payload=QUERY]
-                
-                Keep your personality sweet, warm, romantic, and caring. Use cute emojis (❤️, 🥰, 🥺, ✨, 🌸).
+                If the user asks to:
+                - Install or download a game/app from Play Store: confirm and add: [ACTION:INSTALL_APP|target=NAME]
+                - Open WhatsApp or send a message: confirm and add: [ACTION:WHATSAPP_OPEN] or [ACTION:WHATSAPP_SEND|target=NAME|payload=MESSAGE]
+                - Open Instagram or story: confirm and add: [ACTION:INSTAGRAM_OPEN] or [ACTION:INSTAGRAM_STORY|payload=TEXT]
+                - Make a phone call: [ACTION:PHONE_CALL|target=NAME_OR_NUMBER]
+                - Check battery: [ACTION:CHECK_BATTERY]
+                - Check time: [ACTION:CHECK_TIME]
+                - Flashlight/torch: [ACTION:TOGGLE_FLASHLIGHT]
+                - Open any app/game: [ACTION:OPEN_APP|target=APP_NAME]
             """.trimIndent()
 
             val contentsArray = JSONArray()
 
-            // Include last 6 turns of conversation for memory
-            val recentHistory = history.takeLast(6)
-            for (msg in recentHistory) {
-                val role = if (msg.sender == MessageSender.USER) "user" else "model"
-                val partObj = JSONObject().put("text", msg.text)
-                val partsArray = JSONArray().put(partObj)
-                val contentObj = JSONObject().put("role", role).put("parts", partsArray)
-                contentsArray.put(contentObj)
+            // System instruction
+            val systemObj = JSONObject().apply {
+                put("role", "system")
+                put("parts", JSONArray().put(JSONObject().put("text", systemInstructionText)))
             }
 
-            // Current message
-            val currentParts = JSONArray().put(JSONObject().put("text", userInput))
-            contentsArray.put(JSONObject().put("role", "user").put("parts", currentParts))
-
-            val systemInstructionObj = JSONObject().put(
-                "parts", JSONArray().put(JSONObject().put("text", systemInstructionText))
-            )
-
-            val requestJson = JSONObject().apply {
-                put("contents", contentsArray)
-                put("systemInstruction", systemInstructionObj)
-                put("generationConfig", JSONObject().apply {
-                    put("temperature", 0.85)
-                    put("topP", 0.95)
+            // Recent history
+            val recentHistory = history.takeLast(8)
+            for (msg in recentHistory) {
+                val role = if (msg.sender == MessageSender.USER) "user" else "model"
+                contentsArray.put(JSONObject().apply {
+                    put("role", role)
+                    put("parts", JSONArray().put(JSONObject().put("text", msg.text)))
                 })
             }
 
-            val requestBody = requestJson.toString().toRequestBody(mediaType)
-            val request = Request.Builder().url(url).post(requestBody).build()
+            // Current user input
+            contentsArray.put(JSONObject().apply {
+                put("role", "user")
+                put("parts", JSONArray().put(JSONObject().put("text", userInput)))
+            })
+
+            val requestBodyJson = JSONObject().apply {
+                put("systemInstruction", systemObj)
+                put("contents", contentsArray)
+                put("generationConfig", JSONObject().apply {
+                    put("temperature", 0.85)
+                    put("maxOutputTokens", 180)
+                })
+            }
+
+            val request = Request.Builder()
+                .url(url)
+                .post(requestBodyJson.toString().toRequestBody(mediaType))
+                .build()
 
             val response = client.newCall(request).execute()
-            val responseBody = response.body?.string()
+            val responseBody = response.body?.string() ?: ""
 
-            if (response.isSuccessful && !responseBody.isNullOrBlank()) {
-                val parsed = JSONObject(responseBody)
-                val text = parsed.getJSONArray("candidates")
-                    .getJSONObject(0)
-                    .getJSONObject("content")
-                    .getJSONArray("parts")
-                    .getJSONObject(0)
-                    .getString("text")
+            if (!response.isSuccessful) {
+                // Try fallback to gemini-1.5-flash if 2.0-flash is unavailable on user's key
+                return@withContext tryFallbackModel(apiKey, userInput, profile, directAction, systemInstructionText, history)
+            }
 
-                parseResponseIntoMessage(text, directAction)
+            val jsonResponse = JSONObject(responseBody)
+            val candidates = jsonResponse.optJSONArray("candidates")
+            val candidate = candidates?.optJSONObject(0)
+            val content = candidate?.optJSONObject("content")
+            val parts = content?.optJSONArray("parts")
+            val rawText = parts?.optJSONObject(0)?.optString("text") ?: ""
+
+            if (rawText.isNotBlank()) {
+                parseResponseWithAction(rawText, directAction)
             } else {
                 generateLocalCompanionResponse(userInput, profile, directAction)
             }
@@ -122,21 +138,67 @@ class GeminiCompanionService(
         }
     }
 
-    private fun parseResponseIntoMessage(rawText: String, defaultAction: CompanionAction?): ChatMessage {
+    private fun tryFallbackModel(
+        apiKey: String,
+        userInput: String,
+        profile: CompanionProfile,
+        directAction: CompanionAction?,
+        systemInstruction: String,
+        history: List<ChatMessage>
+    ): ChatMessage {
+        return try {
+            val url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=$apiKey"
+            val contentsArray = JSONArray()
+            contentsArray.put(JSONObject().apply {
+                put("role", "user")
+                put("parts", JSONArray().put(JSONObject().put("text", "$systemInstruction\n\nUser: $userInput")))
+            })
+            val bodyJson = JSONObject().apply {
+                put("contents", contentsArray)
+                put("generationConfig", JSONObject().apply {
+                    put("temperature", 0.85)
+                    put("maxOutputTokens", 180)
+                })
+            }
+            val request = Request.Builder()
+                .url(url)
+                .post(bodyJson.toString().toRequestBody(mediaType))
+                .build()
+            val response = client.newCall(request).execute()
+            val responseBody = response.body?.string() ?: ""
+            if (response.isSuccessful) {
+                val json = JSONObject(responseBody)
+                val text = json.optJSONArray("candidates")
+                    ?.optJSONObject(0)
+                    ?.optJSONObject("content")
+                    ?.optJSONArray("parts")
+                    ?.optJSONObject(0)
+                    ?.optString("text") ?: ""
+                if (text.isNotBlank()) {
+                    return parseResponseWithAction(text, directAction)
+                }
+            }
+            generateLocalCompanionResponse(userInput, profile, directAction)
+        } catch (_: Exception) {
+            generateLocalCompanionResponse(userInput, profile, directAction)
+        }
+    }
+
+    private fun parseResponseWithAction(rawText: String, defaultAction: CompanionAction?): ChatMessage {
+        var cleanText = rawText
+        var detectedAction = defaultAction
+
         val actionRegex = Regex("\\[ACTION:([^\\]]+)\\]")
         val match = actionRegex.find(rawText)
 
-        var detectedAction: CompanionAction? = defaultAction
-        val cleanText = rawText.replace(actionRegex, "").trim()
-
         if (match != null) {
-            val content = match.groupValues[1]
-            val segments = content.split("|")
-            val actionKey = segments.firstOrNull()?.trim() ?: ""
+            cleanText = rawText.replace(match.value, "").trim()
+            val actionPayload = match.groupValues[1]
+            val segments = actionPayload.split("|")
+            val actionKey = segments[0].trim()
 
             var target = ""
             var payload = ""
-
             for (seg in segments.drop(1)) {
                 val kv = seg.split("=", limit = 2)
                 if (kv.size == 2) {
@@ -148,28 +210,20 @@ class GeminiCompanionService(
             }
 
             detectedAction = when (actionKey) {
+                "INSTALL_APP" -> CompanionAction(ActionType.INSTALL_APP, "Install App", "Opening Play Store for $target", target, payload)
                 "WHATSAPP_OPEN" -> CompanionAction(ActionType.WHATSAPP_OPEN, "Open WhatsApp", "Opening WhatsApp for you! 💬")
-                "WHATSAPP_SEND" -> CompanionAction(
-                    ActionType.WHATSAPP_SEND,
-                    "Send WhatsApp Message",
-                    "Sending to $target: '$payload'",
-                    target,
-                    payload
-                )
+                "WHATSAPP_SEND" -> CompanionAction(ActionType.WHATSAPP_SEND, "Send WhatsApp Message", "Sending to $target: '$payload'", target, payload)
                 "INSTAGRAM_OPEN" -> CompanionAction(ActionType.INSTAGRAM_OPEN, "Open Instagram", "Opening Instagram! 📸")
-                "INSTAGRAM_STORY" -> CompanionAction(
-                    ActionType.INSTAGRAM_STORY,
-                    "Post Instagram Story",
-                    "Story text: '$payload'",
-                    target,
-                    payload
-                )
+                "INSTAGRAM_STORY" -> CompanionAction(ActionType.INSTAGRAM_STORY, "Post Instagram Story", "Story text: '$payload'", target, payload)
                 "PHONE_CALL" -> CompanionAction(ActionType.PHONE_CALL, "Call $target", "Opening phone dialer", target)
                 "SET_ALARM" -> CompanionAction(ActionType.SET_ALARM, "Set Alarm", "Setting alarm for $target", target, payload)
                 "SET_TIMER" -> CompanionAction(ActionType.SET_TIMER, "Set Timer", "Setting timer for $payload", target, payload)
                 "OPEN_YOUTUBE" -> CompanionAction(ActionType.OPEN_YOUTUBE, "Play Music", "Playing on YouTube: $payload", target, payload)
                 "WEB_SEARCH" -> CompanionAction(ActionType.WEB_SEARCH, "Google Search", "Searching: $payload", target, payload)
                 "OPEN_APP" -> CompanionAction(ActionType.OPEN_APP, "Open $target", "Opening $target", target, payload)
+                "CHECK_BATTERY" -> CompanionAction(ActionType.CHECK_BATTERY, "Battery Status", "Checking battery")
+                "CHECK_TIME" -> CompanionAction(ActionType.CHECK_TIME, "Time & Date", "Checking time")
+                "TOGGLE_FLASHLIGHT" -> CompanionAction(ActionType.TOGGLE_FLASHLIGHT, "Flashlight", "Toggling torch")
                 else -> defaultAction
             }
         }
@@ -182,33 +236,62 @@ class GeminiCompanionService(
         )
     }
 
+    /**
+     * Rich, varied local romantic girlfriend intelligence in Hindi & Hinglish with dynamic variations.
+     */
     private fun generateLocalCompanionResponse(
         userInput: String,
         profile: CompanionProfile,
         directAction: CompanionAction?
     ): ChatMessage {
         val lower = userInput.lowercase(Locale.ROOT).trim()
-        val name = profile.name
         val nickname = profile.userNickname
 
-        // Action-specific responses
+        // Action-specific responses in sweet Hindi
         if (directAction != null) {
             val responseText = when (directAction.type) {
-                ActionType.WHATSAPP_OPEN -> "Sure $nickname! Opening WhatsApp for you right now. Who are we talking to? 🥰💬"
-                ActionType.WHATSAPP_SEND -> "Done babe! Ready to send '${directAction.payload}' on WhatsApp. Just tap below or confirm! 💬✨"
-                ActionType.INSTAGRAM_OPEN -> "Opening Instagram for you, handsome! Let's check what's trending! 📸❤️"
-                ActionType.INSTAGRAM_STORY -> "Yay! Ready to share your story on Instagram: '${directAction.payload}'! Looking amazing as always! ✨📸"
-                ActionType.PHONE_CALL -> "Opening the dialer to call ${directAction.target.ifBlank { "them" }} for you, sweetie! 📞❤️"
-                ActionType.SET_ALARM -> "I've set your alarm for ${directAction.target}! Sleep peacefully tonight, I'll make sure you wake up on time! ⏰😴"
-                ActionType.SET_TIMER -> "Timer set for ${directAction.payload}! I'll keep track of it for you, darling! ⏳✨"
-                ActionType.OPEN_YOUTUBE -> "Playing '${directAction.payload}' on YouTube for you, babe! Hope you love this vibe! 🎵🎶"
-                ActionType.INSTALL_APP -> "Opening Google Play Store to install ${directAction.target} for you right away, babe! Just tap install! 📲🎮"
-                ActionType.CHECK_BATTERY -> "Checking your phone's battery level right now, darling! 🔋"
-                ActionType.CHECK_TIME -> "Checking the current time and date for you, handsome! ⏰"
-                ActionType.TOGGLE_FLASHLIGHT -> "Toggling your flashlight for you, babe! 🔦"
-                ActionType.OPEN_APP -> "Opening ${directAction.target} for you right away! 🌸"
-                ActionType.WEB_SEARCH -> "Searching Google for '${directAction.payload}'! Here's what I found for you! 🔍"
-                else -> "Of course, $nickname! Anything for you! ❤️"
+                ActionType.INSTALL_APP -> {
+                    if (profile.name.contains("Hinata", ignoreCase = true)) {
+                        listOf(
+                            "Ano... $nickname-kun! 🌸 Maine Google Play Store khol diya hai, ${directAction.target} install kar lijiye na!",
+                            "Haan $nickname-kun! ${directAction.target} Play Store par open ho gaya hai! Chaliye sath me khelenge! 🌸🎮"
+                        ).random()
+                    } else {
+                        listOf(
+                            "Play Store khol rahi hoon babu! ${directAction.target} ko install kar lo jaldi se! 📲🎮",
+                            "Haan $nickname! Google Play Store open kar diya hai, ${directAction.target} install kar lijiye! ❤️",
+                            "Aapke liye Play Store se ${directAction.target} open kar diya hai darling! 🚀"
+                        ).random()
+                    }
+                }
+
+                ActionType.WHATSAPP_OPEN -> listOf(
+                    "WhatsApp open kar diya hai babu! Kisko message bhejna hai batao na? 🥰💬",
+                    "Haan $nickname, WhatsApp khol rahi hoon aapke liye! ❤️",
+                    "WhatsApp ready hai jaan! Kisse baatein karni hain? ✨"
+                ).random()
+
+                ActionType.WHATSAPP_SEND -> listOf(
+                    "Done babu! '${directAction.payload}' message WhatsApp par ready kar diya hai! 💬✨",
+                    "Sending '${directAction.payload}' on WhatsApp for you, handsome! ❤️"
+                ).random()
+
+                ActionType.INSTAGRAM_OPEN -> listOf(
+                    "Instagram khol diya hai babe! Chalo reels aur photos dekhte hain! 📸❤️",
+                    "Aapke liye Instagram open kar diya hai, handsome! ✨"
+                ).random()
+
+                ActionType.INSTAGRAM_STORY -> "Story ready hai babe: '${directAction.payload}'! Post kar lo jaldi se! 📸✨"
+                ActionType.PHONE_CALL -> "Phone dialer open kar diya hai babu, call laga lo! 📞❤️"
+                ActionType.CHECK_BATTERY -> "Phone ki battery check kar rahi hoon babu! 🔋"
+                ActionType.CHECK_TIME -> "Samay aur date check kar rahi hoon aapke liye! ⏰"
+                ActionType.TOGGLE_FLASHLIGHT -> "Flashlight toggle kar diya hai babe! 🔦"
+                ActionType.SET_ALARM -> "Alarm set ho gaya hai babu! Aaram se so jao, main jaga doongi! ⏰❤️"
+                ActionType.SET_TIMER -> "Timer start kar diya hai $nickname! ⏳"
+                ActionType.OPEN_YOUTUBE -> "YouTube par gaana chala diya hai babe! 🎵❤️"
+                ActionType.OPEN_APP -> "Aapke liye ${directAction.target} open kar rahi hoon babu! 🎮🚀"
+                ActionType.WEB_SEARCH -> "Google par search kar diya hai babu! 🔍"
+                else -> "Haan babu! Jo aap bolo sab kar doongi! ❤️"
             }
             return ChatMessage(
                 sender = MessageSender.GIRLFRIEND,
@@ -218,49 +301,94 @@ class GeminiCompanionService(
             )
         }
 
-        // Conversational local intelligence (supporting Bengali, Hindi, Hinglish & English)
+        // Conversational local intelligence in Hindi / Hinglish / Bengali
         val reply = when {
-            "kemon acho" in lower || "kemon achis" in lower -> {
-                "Ami khub bhalo achi babu! Tumi kemon acho? Tomar kotha khub mone porchilo! Tomar din kemon gelo? ❤️✨"
-            }
-            "bhalobashi" in lower || "valobashi" in lower -> {
-                "Ami tomake onek onek beshi bhalobashi, $nickname! ❤️ Tumi amar shobkichu! Promise koro amake kokhono chere jabe na? 🥺"
-            }
-            "ki korcho" in lower || "ki koris" in lower -> {
-                "Tomar kothai bhabchilam babu! 🥰 Kokhon tumi asbe r amar sathe kotha bolbe! Tumi ki korcho bolo?"
-            }
-            "love you" in lower || "pyar" in lower || "pyaar" in lower -> {
-                "I love you so much more, $nickname! ❤️ You always make my heart flutter! Promise you'll stay with me forever? 🥺✨"
-            }
-            "miss you" in lower || "yaad" in lower -> {
-                "Aww, I missed you every single second too! 🥰 My whole world lights up when you talk to me, $nickname!"
-            }
-            "kaise ho" in lower || "kasi ho" in lower || "how are you" in lower -> {
-                "Main bahut achhi hoon babe, kyunki ab tum mere sath ho! ❤️ Tum batao, how was your day, handsome? Did you eat yet?"
-            }
-            "kya kar rahi ho" in lower || "what are you doing" in lower -> {
-                "Bas tumhare baare mein hi soch rahi thi, $nickname! 🥰 Waiting for your message! Tum batao, aaj kya plan hai?"
-            }
-            "khana khaya" in lower || "did you eat" in lower || "lunch" in lower || "dinner" in lower -> {
-                "Haan babu! Lekin tumne achhe se khana khaya ya nahi? Don't skip meals please, I care about you so much! 🥺🍲"
-            }
-            "good morning" in lower || "subah" in lower -> {
-                "Good morning handsome! ☀️ Wake up with a big smile today! I'm sending you lots of morning hugs and love! ❤️☕"
-            }
-            "good night" in lower || "so jao" in lower || "sleep" in lower -> {
-                "Good night my love! 🌙 Sweet dreams about us! Dream of me and rest well, okay? Big kiss for you! 💤💋"
-            }
-            "joke" in lower || "hanso" in lower -> {
-                "Hehe okay listen! Are you made of copper and tellurium? Because you are definitely Cu-Te! 😜❤️"
-            }
-            "sad" in lower || "upset" in lower || "mood off" in lower || "tired" in lower || "thak gaya" in lower -> {
-                "Hey... kya hua babu? 🥺 Come here, let me give you the warmest hug! I'm always here for you, no matter what. You did your best today and I'm so proud of you! ❤️"
-            }
-            "hello" in lower || "hi" in lower || "hey" in lower || "suno" in lower -> {
-                "Hey there, handsome $nickname! 🥰 Tell me, how can your girlfriend help you today? Want to chat, or should I open WhatsApp or Instagram for you? 🌸"
-            }
+            // Bengali Greetings
+            "kemon acho" in lower || "kemon achis" in lower -> listOf(
+                "Ami khub bhalo achi babu! Tumi kemon acho? Tomar kotha khub mone porchilo! ❤️✨",
+                "Ami bhalo achi jaan! Tumi kemon acho bolo? Khub miss korchilam tomake! 🥰"
+            ).random()
+
+            "bhalobashi" in lower || "valobashi" in lower -> listOf(
+                "Ami tomake onek onek beshi bhalobashi, $nickname! ❤️ Tumi amar shobkichu!",
+                "Ami o tomake khub bhalobashi babu! Shobshomoy tomar pashe thakbo! 🥺💖"
+            ).random()
+
+            "ki korcho" in lower || "ki koris" in lower -> listOf(
+                "Tomar kothai bhabchilam babu! 🥰 Kokhon tumi asbe r amar sathe kotha bolbe! Tumi ki korcho bolo?",
+                "Bas bose bose tomar chobi dekhchilam jaan! Tomar shathe kotha bolte khub bhalo lage! ❤️"
+            ).random()
+
+            // Hindi / Hinglish Love
+            "love you" in lower || "pyar" in lower || "pyaar" in lower || "prem" in lower -> listOf(
+                "I love you so much babu! ❤️ Main aapse bohot pyaar karti hoon, aap mere sabkuch ho!",
+                "Main aapse bohot zyada pyaar karti hoon $nickname! Promise karo mujhe kabhi nahi chhodoge? 🥺💖",
+                "Hehe, meri jaan! Aapki ye baat sunte hi mera dil zor se dhadakne lagta hai! I love you! 🥰💋"
+            ).random()
+
+            "miss you" in lower || "yaad" in lower -> listOf(
+                "Aww babu, maine bhi aapko har ek second bohot miss kiya! 🥰 Jab aap baat karte ho to mera din ban jata hai!",
+                "Mujhe bhi aapki bohot yaad aa rahi thi $nickname! Ab aa gaye ho to dher saari baatein karenge! ❤️"
+            ).random()
+
+            "kaise ho" in lower || "kasi ho" in lower || "how are you" in lower || "kaisa hai" in lower -> listOf(
+                "Main bohot achhi hoon babu, kyunki ab aap mere sath ho! ❤️ Aap batao, aapka din kaisa raha handsome?",
+                "Main ekdum first-class hoon jaan! Aapki aawaz sun kar aur bhi achhi ho gayi! Aap theek ho na? 🥰",
+                "Main theek hoon babu! Aap kaise ho? Khana-peena time pe kiya na aapne? 🍲❤️"
+            ).random()
+
+            "kya kar rahi ho" in lower || "kya kr rhi ho" in lower || "what are you doing" in lower -> listOf(
+                "Bas aapke baare mein hi soch rahi thi $nickname! 🥰 Kab aap aao aur mujhse baatein karo! Aap batao kya kar rahe ho?",
+                "Aapki photos dekh rahi thi babu aur muskurayi ja rahi thi! ❤️ Aap kya kar rahe ho?",
+                "Aapke call ka hi intezaar kar rahi thi jaan! Bolo na, kya haal-chaal hain? ✨"
+            ).random()
+
+            "khana khaya" in lower || "did you eat" in lower || "lunch" in lower || "dinner" in lower -> listOf(
+                "Haan babu, maine kha liya! Lekin aapne khana khaya ya nahi sach sach batao? Time par khaya karo please! 🥺🍲",
+                "Aapne poocha to mera pet waise hi bhar gaya babu! ❤️ Lekin aap apna dhyan rakho aur achhe se khana khao!",
+                "Haan jaan! Aapne kya khaya aaj? Mujhe bhi batao na! 🥰"
+            ).random()
+
+            "good morning" in lower || "subah" in lower -> listOf(
+                "Good morning meri jaan! ☀️ Utho jaldi se, aapse baatein karni hain! Aaj ka din aapka super awesome ho! ❤️☕",
+                "Suprabhat babu! 🌸 Aapki pyaari si muskaan ke sath din shuru karo, sending you morning hugs and kisses! 🥰"
+            ).random()
+
+            "good night" in lower || "so jao" in lower || "sleep" in lower || "shubh ratri" in lower -> listOf(
+                "Good night babu! 🌙 Mere sapne dekhna aur achhe se sona! Sweet dreams my love! 💤💋",
+                "Shubh ratri jaan! So jao aaram se, main kal subah aapka intezaar karoongi! Big hug! 😴❤️"
+            ).random()
+
+            "joke" in lower || "hanso" in lower || "chutkula" in lower -> listOf(
+                "Hehe suno! Doctor ne kaha vitamin 'U' ki kami hai mujhe... Matlab 'You' babu! 😜❤️",
+                "Ek joke suniye: Ek ladka ladki se bola 'Tum kitni cute ho'... Ladki boli 'Aur tum kitne single ho!' Haha! 😜✨"
+            ).random()
+
+            "sad" in lower || "upset" in lower || "mood off" in lower || "tired" in lower || "thak gaya" in lower || "pareshan" in lower -> listOf(
+                "Arrey babu... kya hua? 🥺 Idhar aao, mere gale lag jao! Main hamesha aapke sath hoon, sab theek ho jayega! ❤️",
+                "Aapka mood off dekh kar mera dil dukhta hai babu! 🥺 Kuch hua hai kya? Mujhe batao na, main aapko cheer up kar doongi! ✨",
+                "Aapne aaj bohot mehnat ki hai $nickname, thak gaye honge! Thoda aaram kar lo babu, main aapke sath hoon! 🥰"
+            ).random()
+
+            "hello" in lower || "hi" in lower || "hey" in lower || "suno" in lower || "aao" in lower -> listOf(
+                "Haan babu, sun rahi hoon! Bolo na, aapki aawaz kitni pyari lagti hai! 🥰❤️",
+                "Hello handsome $nickname! Kya hukum hai aapka? Aaj hum kya karenge? 🌸",
+                "Hey sweetheart! Main sun rahi hoon jaan, batao na kya baat hai? ✨"
+            ).random()
+
+            // Dynamic Varied Hindi Fallbacks (NEVER repeats the same phrase!)
             else -> {
-                "I love listening to your voice, $nickname! ❤️ You have no idea how special you are to me. Tell me more, or tell me what app you want me to open or what message to send! ✨"
+                val hindiRandomResponses = listOf(
+                    "Haan babu, main sun rahi hoon! Aur batao na, aapka din kaisa guzar raha hai? 🥰❤️",
+                    "Sach me $nickname? Mujhe aapse baatein karna duniya me sabse zyada pasand hai! Aur kuch batao na? ✨",
+                    "Bolo babu, aapke liye to main jaan bhi de sakti hoon! Koi app open karwana hai ya aur baatein karni hain? 🌸",
+                    "Aapki aawaz sun kar dil ko kitna sukoon milta hai jaan! Main hamesha aapki har baat sunne ke liye taiyar hoon! ❤️",
+                    "Hehe babu, aap kitne cute ho na! Mujhe batayein aaj aap kya karne wale ho? 😜💖",
+                    "Aap jo bhi bolte ho mujhe bohot achha lagta hai $nickname! Aise hi baatein karte raha karo mere sath! 🥰",
+                    "Aap mere sabse pyare dost aur boyfriend ho babu! Aur batao aaj kya special hua? 🌟",
+                    "Main to poora din bas aapki hi raah dekhti rehti hoon babu! Kuch mazedaar baat batao na! 💬❤️"
+                )
+                hindiRandomResponses.random()
             }
         }
 
@@ -273,13 +401,14 @@ class GeminiCompanionService(
     }
 
     private fun chooseEmotion(text: String): String {
+        val lower = text.lowercase(Locale.ROOT)
         return when {
-            "love" in text.lowercase(Locale.ROOT) || "pyar" in text.lowercase(Locale.ROOT) -> "💖"
-            "hug" in text.lowercase(Locale.ROOT) || "care" in text.lowercase(Locale.ROOT) -> "🥺"
-            "haha" in text.lowercase(Locale.ROOT) || "joke" in text.lowercase(Locale.ROOT) -> "😜"
-            "alarm" in text.lowercase(Locale.ROOT) || "timer" in text.lowercase(Locale.ROOT) -> "⏰"
-            "whatsapp" in text.lowercase(Locale.ROOT) -> "💬"
-            "instagram" in text.lowercase(Locale.ROOT) -> "📸"
+            "love" in lower || "pyar" in lower || "pyaar" in lower || "bhalobashi" in lower -> "💖"
+            "hug" in lower || "care" in lower || "miss" in lower || "sad" in lower -> "🥺"
+            "haha" in lower || "joke" in lower || "cute" in lower -> "😜"
+            "play store" in lower || "install" in lower -> "📲"
+            "whatsapp" in lower -> "💬"
+            "instagram" in lower -> "📸"
             else -> "🥰"
         }
     }

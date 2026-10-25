@@ -379,6 +379,17 @@ class CompanionActionHandler(private val context: Context) {
     fun installAppFromPlayStore(target: String): String {
         val clean = target.trim()
         val lower = clean.lowercase(Locale.ROOT)
+
+        // If target is just "play store" or blank, open Play Store app directly
+        if (clean.isBlank() || lower == "play store" || lower == "playstore") {
+            val playStoreIntent = context.packageManager.getLaunchIntentForPackage("com.android.vending")
+            if (playStoreIntent != null) {
+                playStoreIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                context.startActivity(playStoreIntent)
+                return "Google Play Store open kar diya hai babu! 📲✨"
+            }
+        }
+
         val directPackage = when {
             "free fire max" in lower -> "com.dts.freefiremax"
             "free fire" in lower -> "com.dts.freefireth"
@@ -389,16 +400,27 @@ class CompanionActionHandler(private val context: Context) {
             "minecraft" in lower -> "com.mojang.minecraftpe"
             "roblox" in lower -> "com.roblox.client"
             "clash of clans" in lower || lower == "coc" -> "com.supercell.clashofclans"
+            "candy crush" in lower -> "com.king.candycrushsaga"
+            "ludo king" in lower || "ludo" in lower -> "com.ludo.king"
+            "hill climb" in lower -> "com.fingersoft.hillclimb"
+            "asphalt" in lower -> "com.gameloft.android.ANMP.GloftA9HM"
             "whatsapp" in lower -> "com.whatsapp"
             "instagram" in lower -> "com.instagram.android"
             "telegram" in lower -> "org.telegram.messenger"
             "snapchat" in lower -> "com.snapchat.android"
+            "youtube" in lower -> "com.google.android.youtube"
+            "spotify" in lower -> "com.spotify.music"
+            "netflix" in lower -> "com.netflix.mediaclient"
+            "gpay" in lower || "google pay" in lower -> "com.google.android.apps.nbu.paisa.user"
+            "phonepe" in lower -> "com.phonepe.app"
+            "paytm" in lower -> "net.one97.paytm"
             else -> null
         }
 
         val intent = if (directPackage != null) {
             try {
                 Intent(Intent.ACTION_VIEW, Uri.parse("market://details?id=$directPackage")).apply {
+                    setPackage("com.android.vending")
                     addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                 }
             } catch (_: Exception) {
@@ -409,6 +431,7 @@ class CompanionActionHandler(private val context: Context) {
         } else {
             try {
                 Intent(Intent.ACTION_VIEW, Uri.parse("market://search?q=${URLEncoder.encode(clean, "UTF-8")}&c=apps")).apply {
+                    setPackage("com.android.vending")
                     addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                 }
             } catch (_: Exception) {

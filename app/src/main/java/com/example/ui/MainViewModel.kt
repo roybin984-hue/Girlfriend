@@ -32,6 +32,7 @@ data class MainUiState(
     val showOnboarding: Boolean = false,
     val isScreenShareActive: Boolean = false,
     val isAssistantModeActive: Boolean = false,
+    val geminiApiKey: String = "",
     val serverConfig: ServerControlConfig = ServerControlConfig(),
     val isFirebaseSyncing: Boolean = false,
     val showAdminDialog: Boolean = false,
@@ -43,13 +44,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private val preferences = CompanionPreferences(application)
     private val actionHandler = CompanionActionHandler(application)
-    private val aiService = GeminiCompanionService(actionHandler)
+    private val aiService = GeminiCompanionService(actionHandler, preferences)
     private val voiceManager = VoiceManager(application)
     private val serverControlService = FirebaseServerControlService(application)
 
     private val _uiState = MutableStateFlow(
         MainUiState(
             profile = preferences.getProfile(),
+            geminiApiKey = preferences.geminiApiKey,
             showOnboarding = !preferences.hasCompletedOnboarding
         )
     )
@@ -225,6 +227,24 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         showToast("Voice & profile saved! ❤️")
     }
 
+    fun selectCharacterPersona(name: String, pitch: Float, rate: Float) {
+        val currentProf = _uiState.value.profile
+        val updated = currentProf.copy(
+            name = name,
+            voicePitch = pitch,
+            voiceSpeed = rate,
+            voicePreset = name
+        )
+        saveProfile(updated)
+        val greeting = when {
+            name.contains("Hinata", ignoreCase = true) -> "Ano... ${updated.userNickname}-kun! 🌸 Main Hinata hoon... main aapse bohot pyaar karti hoon! Kya aap mere sath baat karenge?"
+            name.contains("Sakura", ignoreCase = true) -> "Hey ${updated.userNickname}! ⚡ Sakura yahan hai, chalo kuch toofan karte hain!"
+            name.contains("Tsunade", ignoreCase = true) -> "Hello ${updated.userNickname}! 🌙 Main Tsunade hoon, sab theek hai na babu?"
+            else -> "Haan ${updated.userNickname}! ❤️ Main Aria hoon, aapki pyari girlfriend!"
+        }
+        speakAloud(greeting)
+    }
+
     fun toggleAutoSpeak() {
         val current = _uiState.value.profile.autoSpeak
         val updated = !current
@@ -294,6 +314,17 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             showToast("Invalid Admin PIN! ❌")
         }
         return valid
+    }
+
+    fun saveGeminiApiKey(key: String) {
+        val cleanKey = key.trim()
+        preferences.geminiApiKey = cleanKey
+        _uiState.value = _uiState.value.copy(geminiApiKey = cleanKey)
+        if (cleanKey.isNotBlank()) {
+            showToast("Google AI Studio API Key saved successfully! 🚀")
+        } else {
+            showToast("API Key cleared. Using local girlfriend engine.")
+        }
     }
 
     fun showToast(msg: String) {

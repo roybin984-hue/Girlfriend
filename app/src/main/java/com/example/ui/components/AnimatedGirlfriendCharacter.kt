@@ -47,7 +47,9 @@ fun AnimatedGirlfriendCharacter(
     isSpeaking: Boolean,
     isListening: Boolean,
     onCharacterTouch: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    characterName: String = "Aria",
+    customImageRes: Int? = null
 ) {
     val infiniteTransition = rememberInfiniteTransition(label = "anime_character_physics")
 
@@ -141,10 +143,16 @@ fun AnimatedGirlfriendCharacter(
                 },
             contentAlignment = Alignment.Center
         ) {
-            // First Anime Girlfriend Picture
+            val imageRes = customImageRes ?: if (characterName.contains("Hinata", ignoreCase = true)) {
+                R.drawable.img_hinata_waifu
+            } else {
+                R.drawable.img_anime_gf_live
+            }
+
+            // Anime Character Image
             Image(
-                painter = painterResource(id = R.drawable.img_anime_gf_live),
-                contentDescription = "Anime Girlfriend Aria",
+                painter = painterResource(id = imageRes),
+                contentDescription = "$characterName Anime Character",
                 contentScale = ContentScale.Crop,
                 modifier = Modifier.fillMaxSize()
             )

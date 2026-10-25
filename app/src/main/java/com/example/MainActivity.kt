@@ -254,7 +254,8 @@ fun GirlfriendApp(viewModel: MainViewModel = viewModel()) {
                                 viewModel.speakAloud("Hehe, that tickles, ${uiState.profile.userNickname}! You are so cute! 🥰❤️")
                             },
                             onToggleScreenShare = viewModel::toggleScreenShare,
-                            isScreenShareActive = uiState.isScreenShareActive
+                            isScreenShareActive = uiState.isScreenShareActive,
+                            onSelectCharacter = viewModel::selectCharacterPersona
                         )
                     }
 
@@ -281,8 +282,10 @@ fun GirlfriendApp(viewModel: MainViewModel = viewModel()) {
                     AppNavTab.PROFILE -> {
                         VoiceProfileScreen(
                             profile = uiState.profile,
+                            geminiApiKey = uiState.geminiApiKey,
                             onSaveProfile = viewModel::saveProfile,
                             onTestVoice = viewModel::testVoice,
+                            onSaveApiKey = viewModel::saveGeminiApiKey,
                             onOpenAdminPanel = { viewModel.setAdminLoginPromptVisible(true) }
                         )
                     }

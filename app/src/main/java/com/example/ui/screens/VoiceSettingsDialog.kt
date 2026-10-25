@@ -63,11 +63,12 @@ data class VoicePreset(
 )
 
 val PRESET_VOICES = listOf(
-    VoicePreset("Sweet & Cute", 1.35f, 1.0f, "🥰", "High pitch, adorable girlfriend vibe"),
-    VoicePreset("Gentle & Romantic", 1.15f, 0.95f, "💖", "Soft, warm, soothing romantic voice"),
-    VoicePreset("Playful Bestie", 1.25f, 1.1f, "😜", "Energetic, cheerful, upbeat voice"),
-    VoicePreset("Natural & Calm", 1.0f, 1.0f, "🌸", "Natural default conversational tone"),
-    VoicePreset("Tsundere Queen", 1.4f, 1.15f, "👑", "Cute, feisty, expressive tone")
+    VoicePreset("Hinata Hyūga 🌸 (Naruto Anime)", 1.42f, 0.92f, "🌸", "Soft, shy, deeply affectionate waifu voice ('Babu... Naruto-kun!')"),
+    VoicePreset("Sakura Haruno ⚡ (Naruto Anime)", 1.25f, 1.10f, "⚡", "Energetic, spirited anime heroine voice"),
+    VoicePreset("Tsunade Onee-san 🌙 (Naruto Anime)", 0.95f, 0.95f, "🌙", "Mature, caring, protective anime voice"),
+    VoicePreset("Aria Girlfriend ❤️ (Sweet Romance)", 1.20f, 1.0f, "🥰", "Warm, loving Hindi/Hinglish girlfriend"),
+    VoicePreset("Kawaii Chibi 🎀 (Cute Anime Girl)", 1.60f, 1.05f, "🎀", "Super sweet, ultra-cute Japanese/Hindi anime voice"),
+    VoicePreset("Gentle & Romantic 💖", 1.15f, 0.95f, "💖", "Soft, soothing, emotional voice")
 )
 
 @Composable

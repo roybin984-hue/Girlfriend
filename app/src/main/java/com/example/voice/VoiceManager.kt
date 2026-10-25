@@ -68,29 +68,28 @@ class VoiceManager(private val context: Context) : TextToSpeech.OnInitListener {
                     override fun onBufferReceived(buffer: ByteArray?) {}
 
                     override fun onEndOfSpeech() {
-                        _isListening.value = false
+                        // In continuous call mode, the microphone NEVER turns off
+                        if (!_isAssistantMode.value) {
+                            _isListening.value = false
+                        }
                         _audioRmsLevel.value = 0f
                     }
 
                     override fun onError(error: Int) {
-                        _isListening.value = false
                         _audioRmsLevel.value = 0f
 
-                        // In continuous hands-free assistant mode, automatically resume listening on timeouts
+                        // In continuous call mode, microphone NEVER disconnects or toggles off!
                         if (_isAssistantMode.value) {
-                            if (error == SpeechRecognizer.ERROR_NO_MATCH ||
-                                error == SpeechRecognizer.ERROR_SPEECH_TIMEOUT ||
-                                error == SpeechRecognizer.ERROR_RECOGNIZER_BUSY ||
-                                error == SpeechRecognizer.ERROR_CLIENT
-                            ) {
-                                mainHandler.postDelayed({
-                                    if (_isAssistantMode.value && !_isSpeaking.value) {
-                                        startListening()
-                                    }
-                                }, 600)
-                                return
-                            }
+                            _isListening.value = true
+                            mainHandler.postDelayed({
+                                if (_isAssistantMode.value && !_isSpeaking.value) {
+                                    restartListeningInternal()
+                                }
+                            }, 100)
+                            return
                         }
+
+                        _isListening.value = false
 
                         val msg = when (error) {
                             SpeechRecognizer.ERROR_AUDIO -> "Audio recording error"
@@ -108,21 +107,32 @@ class VoiceManager(private val context: Context) : TextToSpeech.OnInitListener {
                     }
 
                     override fun onResults(results: Bundle?) {
-                        _isListening.value = false
+                        // Keep listening status locked to TRUE during phone calls
+                        if (!_isAssistantMode.value) {
+                            _isListening.value = false
+                        } else {
+                            _isListening.value = true
+                        }
                         _audioRmsLevel.value = 0f
                         val matches = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
                         if (!matches.isNullOrEmpty()) {
                             val recognizedText = matches[0]
                             val lower = recognizedText.lowercase().trim()
 
-                            // Voice commands to stop assistant
+                            // Voice commands to stop assistant / hang up call
                             if (lower == "stop" || lower == "stop assistant" ||
                                 lower == "band karo" || lower == "exit" ||
+                                lower == "call cut" || lower == "call kato" ||
+                                lower == "phone kato" || lower == "cut karo" ||
                                 lower == "stop talking" || lower == "chup" || lower == "chup raho"
                             ) {
                                 stopAssistantMode()
+                                return
                             }
                             onSpeechRecognized?.invoke(recognizedText)
+                        } else if (_isAssistantMode.value) {
+                            // Seamless loop
+                            restartListeningInternal()
                         }
                     }
 
@@ -149,13 +159,13 @@ class VoiceManager(private val context: Context) : TextToSpeech.OnInitListener {
                 override fun onDone(utteranceId: String?) {
                     _isSpeaking.value = false
 
-                    // In continuous assistant mode, resume listening automatically after speaking!
+                    // In continuous call mode, resume listening immediately after Aria finishes speaking!
                     if (_isAssistantMode.value) {
                         mainHandler.postDelayed({
                             if (_isAssistantMode.value && !_isSpeaking.value) {
-                                startListening()
+                                restartListeningInternal()
                             }
-                        }, 500)
+                        }, 80)
                     }
                 }
 
@@ -165,12 +175,42 @@ class VoiceManager(private val context: Context) : TextToSpeech.OnInitListener {
                     if (_isAssistantMode.value) {
                         mainHandler.postDelayed({
                             if (_isAssistantMode.value) {
-                                startListening()
+                                restartListeningInternal()
                             }
-                        }, 600)
+                        }, 80)
                     }
                 }
             })
+        }
+    }
+
+    fun restartListeningInternal() {
+        if (!_isAssistantMode.value || _isSpeaking.value) return
+        mainHandler.post {
+            try {
+                speechRecognizer?.cancel()
+            } catch (_: Exception) {}
+
+            val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+                putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+                putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.getDefault())
+                putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, Locale.getDefault().toString())
+                putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 3)
+                putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
+            }
+            try {
+                speechRecognizer?.startListening(intent)
+                _isListening.value = true
+            } catch (_: Exception) {
+                mainHandler.postDelayed({
+                    if (_isAssistantMode.value && !_isSpeaking.value) {
+                        try {
+                            speechRecognizer?.startListening(intent)
+                            _isListening.value = true
+                        } catch (_: Exception) {}
+                    }
+                }, 150)
+            }
         }
     }
 
@@ -189,7 +229,9 @@ class VoiceManager(private val context: Context) : TextToSpeech.OnInitListener {
                 _isListening.value = true
             } catch (_: Exception) {
                 _speechError.value = "Voice recognition failed to start"
-                _isListening.value = false
+                if (!_isAssistantMode.value) {
+                    _isListening.value = false
+                }
             }
         }
     }
@@ -199,21 +241,30 @@ class VoiceManager(private val context: Context) : TextToSpeech.OnInitListener {
             try {
                 speechRecognizer?.stopListening()
             } catch (_: Exception) {}
-            _isListening.value = false
+            if (!_isAssistantMode.value) {
+                _isListening.value = false
+            }
             _audioRmsLevel.value = 0f
         }
     }
 
     fun startAssistantMode() {
         _isAssistantMode.value = true
+        _isListening.value = true
+        _speechError.value = null
         mainHandler.removeCallbacksAndMessages(null)
-        startListening()
+        restartListeningInternal()
     }
 
     fun stopAssistantMode() {
         _isAssistantMode.value = false
+        _isListening.value = false
+        _audioRmsLevel.value = 0f
         mainHandler.removeCallbacksAndMessages(null)
-        stopListening()
+        try {
+            speechRecognizer?.cancel()
+            speechRecognizer?.stopListening()
+        } catch (_: Exception) {}
         stopSpeaking()
     }
 
@@ -227,7 +278,12 @@ class VoiceManager(private val context: Context) : TextToSpeech.OnInitListener {
 
     fun speak(text: String, pitch: Float = currentPitch, rate: Float = currentRate) {
         if (!isTtsReady) return
-        stopListening()
+        try {
+            speechRecognizer?.cancel()
+        } catch (_: Exception) {}
+        if (!_isAssistantMode.value) {
+            _isListening.value = false
+        }
         currentPitch = pitch
         currentRate = rate
         tts?.setPitch(pitch)

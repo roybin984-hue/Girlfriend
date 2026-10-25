@@ -60,6 +60,10 @@ class CompanionPreferences(context: Context) {
         return Pair(newLvl, leveledUp)
     }
 
+    var geminiApiKey: String
+        get() = prefs.getString("gemini_api_key", "") ?: ""
+        set(value) = prefs.edit().putString("gemini_api_key", value.trim()).apply()
+
     fun getProfile(): CompanionProfile {
         return CompanionProfile(
             name = companionName,

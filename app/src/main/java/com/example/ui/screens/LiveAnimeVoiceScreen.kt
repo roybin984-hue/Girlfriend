@@ -34,6 +34,9 @@ import androidx.compose.material.icons.automirrored.filled.VolumeOff
 import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
+import androidx.compose.material.icons.filled.Phone
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
@@ -77,6 +80,7 @@ fun LiveAnimeVoiceScreen(
     onAvatarTouch: () -> Unit,
     onToggleScreenShare: (Boolean) -> Unit,
     isScreenShareActive: Boolean,
+    onSelectCharacter: (String, Float, Float) -> Unit = { _, _, _ -> },
     modifier: Modifier = Modifier
 ) {
     val infiniteTransition = rememberInfiniteTransition(label = "voice_ui_effects")
@@ -160,6 +164,7 @@ fun LiveAnimeVoiceScreen(
             isSpeaking = uiState.isSpeaking,
             isListening = uiState.isListening,
             onCharacterTouch = onAvatarTouch,
+            characterName = uiState.profile.name,
             modifier = Modifier.fillMaxSize()
         )
 
@@ -257,6 +262,47 @@ fun LiveAnimeVoiceScreen(
                     tint = if (uiState.profile.autoSpeak) RosePrimary else Color.White.copy(alpha = 0.6f),
                     modifier = Modifier.size(20.dp)
                 )
+            }
+        }
+
+        // Quick Anime Waifu Persona Selector (Hinata, Aria, Sakura, Tsunade)
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 58.dp, start = 14.dp, end = 14.dp)
+                .align(Alignment.TopCenter)
+                .horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            val personas = listOf(
+                Triple("Hinata 🌸", 1.42f, 0.92f),
+                Triple("Aria ❤️", 1.20f, 1.0f),
+                Triple("Sakura ⚡", 1.25f, 1.10f),
+                Triple("Tsunade 🌙", 0.95f, 0.95f),
+                Triple("Kawaii 🎀", 1.60f, 1.05f)
+            )
+            personas.forEach { (pName, pPitch, pRate) ->
+                val rawName = pName.substringBefore(" ")
+                val isSelected = uiState.profile.name.contains(rawName, ignoreCase = true)
+                Surface(
+                    shape = RoundedCornerShape(16.dp),
+                    color = if (isSelected) RosePrimary.copy(alpha = 0.92f) else Color.Black.copy(alpha = 0.6f),
+                    border = androidx.compose.foundation.BorderStroke(
+                        1.dp,
+                        if (isSelected) Color.White else Color.White.copy(alpha = 0.25f)
+                    ),
+                    modifier = Modifier.clickable {
+                        onSelectCharacter(rawName, pPitch, pRate)
+                    }
+                ) {
+                    Text(
+                        text = pName,
+                        fontSize = 11.sp,
+                        fontWeight = if (isSelected) FontWeight.ExtraBold else FontWeight.Medium,
+                        color = Color.White,
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
+                    )
+                }
             }
         }
 
@@ -358,61 +404,94 @@ fun LiveAnimeVoiceScreen(
                 }
             }
 
-            Spacer(modifier = Modifier.height(14.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
-            // Beating Heart (Dil Dhadakta Hai) Assistant Button (Requested by User)
-            Box(
-                modifier = Modifier
-                    .size(96.dp)
-                    .clickable {
-                        if (uiState.isAssistantModeActive) {
-                            onStopAssistantMode()
-                        } else {
-                            onToggleAssistantMode()
-                        }
-                    }
-                    .testTag("beating_heart_assistant_btn"),
-                contentAlignment = Alignment.Center
+            // Call Controls: Beating Heart + Red End Call Button (When Active)
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.Center
             ) {
-                // Outer Concentric Radiating Pulse Rings when heart is beating
-                if (uiState.isAssistantModeActive) {
-                    Box(
-                        modifier = Modifier
-                            .size(76.dp)
-                            .scale(heartRippleScale)
-                            .clip(CircleShape)
-                            .background(HeartRed.copy(alpha = heartRippleAlpha * 0.4f))
-                    )
-                }
-
-                // The Beating Heart Circle Button
+                // Beating Heart (Dil Dhadakta Hai) Assistant Button
                 Box(
                     modifier = Modifier
-                        .size(76.dp)
-                        .scale(if (uiState.isAssistantModeActive) heartbeatScale else 1.0f)
-                        .clip(CircleShape)
-                        .background(
-                            Brush.linearGradient(
-                                colors = if (uiState.isAssistantModeActive) {
-                                    listOf(HeartRed, Color(0xFFFF1744), Color(0xFFD50000))
-                                } else {
-                                    listOf(RosePrimary, RoseSecondary, Color(0xFFC2185B))
-                                }
-                            )
-                        )
-                        .border(
-                            width = 2.5.dp,
-                            color = if (uiState.isAssistantModeActive) Color.White else Color.White.copy(alpha = 0.65f),
-                            shape = CircleShape
-                        ),
+                        .size(90.dp)
+                        .clickable {
+                            if (uiState.isAssistantModeActive) {
+                                onStopAssistantMode()
+                            } else {
+                                onToggleAssistantMode()
+                            }
+                        }
+                        .testTag("beating_heart_assistant_btn"),
                     contentAlignment = Alignment.Center
                 ) {
-                    Icon(
-                        imageVector = if (uiState.isAssistantModeActive) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
-                        contentDescription = if (uiState.isAssistantModeActive) "Stop Assistant (Dil Dhadak Raha Hai)" else "Start Assistant with Heart",
-                        tint = Color.White,
-                        modifier = Modifier.size(38.dp)
-                    )
+                    // Outer Concentric Radiating Pulse Rings when heart is beating
+                    if (uiState.isAssistantModeActive) {
+                        Box(
+                            modifier = Modifier
+                                .size(74.dp)
+                                .scale(heartRippleScale)
+                                .clip(CircleShape)
+                                .background(HeartRed.copy(alpha = heartRippleAlpha * 0.4f))
+                        )
+                    }
+
+                    // The Beating Heart Circle Button
+                    Box(
+                        modifier = Modifier
+                            .size(74.dp)
+                            .scale(if (uiState.isAssistantModeActive) heartbeatScale else 1.0f)
+                            .clip(CircleShape)
+                            .background(
+                                Brush.linearGradient(
+                                    colors = if (uiState.isAssistantModeActive) {
+                                        listOf(HeartRed, Color(0xFFFF1744), Color(0xFFD50000))
+                                    } else {
+                                        listOf(RosePrimary, RoseSecondary, Color(0xFFC2185B))
+                                    }
+                                )
+                            )
+                            .border(
+                                width = 2.5.dp,
+                                color = if (uiState.isAssistantModeActive) Color.White else Color.White.copy(alpha = 0.65f),
+                                shape = CircleShape
+                            ),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = if (uiState.isAssistantModeActive) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                            contentDescription = if (uiState.isAssistantModeActive) "Stop Assistant (Dil Dhadak Raha Hai)" else "Start Assistant with Heart",
+                            tint = Color.White,
+                            modifier = Modifier.size(36.dp)
+                        )
+                    }
+                }
+
+                // Dedicated Red End Call Button when call is active
+                if (uiState.isAssistantModeActive) {
+                    Spacer(modifier = Modifier.width(16.dp))
+                    Button(
+                        onClick = onStopAssistantMode,
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFD50000)),
+                        shape = RoundedCornerShape(24.dp),
+                        modifier = Modifier
+                            .height(48.dp)
+                            .testTag("end_call_red_button")
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Phone,
+                            contentDescription = "End Call",
+                            tint = Color.White,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = "End Call 🛑",
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White,
+                            fontSize = 13.sp
+                        )
+                    }
                 }
             }
 
@@ -421,9 +500,9 @@ fun LiveAnimeVoiceScreen(
             // Descriptive Subtitle
             Text(
                 text = if (uiState.isAssistantModeActive) {
-                    "📞 Live Call Connected ($callDurationStr) • Dil Dhadak Raha Hai! Tap Heart to End Call 🛑"
+                    "📞 Live Call: $callDurationStr • Mic Always ON 🎙️ (Band nahi hoga!)"
                 } else {
-                    "Dil par tap karo Aria ko call karne ke liye ❤️ (Hands-free Voice Call)"
+                    "Dil par tap karein live call start karne ke liye ❤️ (Hands-free Call)"
                 },
                 fontSize = 12.sp,
                 fontWeight = FontWeight.Bold,
