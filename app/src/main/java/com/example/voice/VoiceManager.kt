@@ -1,7 +1,9 @@
 package com.example.voice
 
+import android.Manifest
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.media.AudioAttributes
 import android.media.AudioManager
 import android.os.Bundle
@@ -13,6 +15,7 @@ import android.speech.SpeechRecognizer
 import android.speech.tts.TextToSpeech
 import android.speech.tts.UtteranceProgressListener
 import android.speech.tts.Voice
+import androidx.core.content.ContextCompat
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -43,9 +46,9 @@ class VoiceManager(private val context: Context) : TextToSpeech.OnInitListener {
     private var isLoudVoiceBoostEnabled: Boolean = true
     private var userVolumeLevel: Float = 1.0f
 
-    // Natural human pitch (1.02f) - eliminates artificial robotic sound
+    // Natural human conversational pitch (1.02f) - eliminates robotic/chipmunk sound
     private var currentPitch: Float = 1.02f
-    private var currentRate: Float = 1.0f
+    private var currentRate: Float = 0.98f
     private var isTtsReady = false
     private var lastSpokenText: String = ""
 
@@ -56,6 +59,13 @@ class VoiceManager(private val context: Context) : TextToSpeech.OnInitListener {
         initSpeechRecognizer()
     }
 
+    private fun hasAudioPermission(): Boolean {
+        return ContextCompat.checkSelfPermission(
+            context,
+            Manifest.permission.RECORD_AUDIO
+        ) == PackageManager.PERMISSION_GRANTED
+    }
+
     private fun initSpeechRecognizer() {
         if (!SpeechRecognizer.isRecognitionAvailable(context)) return
 
@@ -63,139 +73,150 @@ class VoiceManager(private val context: Context) : TextToSpeech.OnInitListener {
             speechRecognizer?.destroy()
         } catch (_: Exception) {}
 
-        speechRecognizer = SpeechRecognizer.createSpeechRecognizer(context).apply {
-            setRecognitionListener(object : RecognitionListener {
-                override fun onReadyForSpeech(params: Bundle?) {
-                    _isListening.value = true
-                    _speechError.value = null
-                }
-
-                override fun onBeginningOfSpeech() {
-                    _isListening.value = true
-                }
-
-                override fun onRmsChanged(rmsdB: Float) {
-                    val normalized = ((rmsdB + 2f) / 12f).coerceIn(0f, 1f)
-                    _audioRmsLevel.value = normalized
-                }
-
-                override fun onBufferReceived(buffer: ByteArray?) {}
-
-                override fun onEndOfSpeech() {
-                    // In continuous phone call mode, the microphone NEVER turns off!
-                    if (!_isAssistantMode.value) {
-                        _isListening.value = false
-                    }
-                    _audioRmsLevel.value = 0f
-                }
-
-                override fun onError(error: Int) {
-                    _audioRmsLevel.value = 0f
-
-                    // IN CONTINUOUS CALL MODE: The microphone NEVER disconnects!
-                    if (_isAssistantMode.value) {
+        try {
+            speechRecognizer = SpeechRecognizer.createSpeechRecognizer(context).apply {
+                setRecognitionListener(object : RecognitionListener {
+                    override fun onReadyForSpeech(params: Bundle?) {
                         _isListening.value = true
-
-                        // If recognizer got busy or client error, recreate it to stay alive forever
-                        if (error == SpeechRecognizer.ERROR_CLIENT ||
-                            error == SpeechRecognizer.ERROR_RECOGNIZER_BUSY ||
-                            error == SpeechRecognizer.ERROR_AUDIO
-                        ) {
-                            mainHandler.postDelayed({
-                                if (_isAssistantMode.value) {
-                                    recreateSpeechRecognizer()
-                                    restartListeningInternal()
-                                }
-                            }, 120)
-                        } else {
-                            // Instant loop restart on timeout or no-match
-                            mainHandler.postDelayed({
-                                if (_isAssistantMode.value) {
-                                    restartListeningInternal()
-                                }
-                            }, 50)
-                        }
-                        return
+                        _speechError.value = null
                     }
 
-                    _isListening.value = false
-
-                    val msg = when (error) {
-                        SpeechRecognizer.ERROR_AUDIO -> "Audio recording error"
-                        SpeechRecognizer.ERROR_CLIENT -> "Client error"
-                        SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> "Microphone permission needed"
-                        SpeechRecognizer.ERROR_NETWORK -> "Network issue with voice"
-                        SpeechRecognizer.ERROR_NO_MATCH -> "Didn't catch that, say again babe?"
-                        SpeechRecognizer.ERROR_RECOGNIZER_BUSY -> "Voice recognizer is busy"
-                        SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> "No speech heard"
-                        else -> "Voice recognition paused"
-                    }
-                    if (error != SpeechRecognizer.ERROR_NO_MATCH && error != SpeechRecognizer.ERROR_SPEECH_TIMEOUT) {
-                        _speechError.value = msg
-                    }
-                }
-
-                override fun onResults(results: Bundle?) {
-                    // Lock mic status to TRUE during call mode so user sees call is continuous
-                    if (_isAssistantMode.value) {
+                    override fun onBeginningOfSpeech() {
                         _isListening.value = true
-                    } else {
-                        _isListening.value = false
                     }
-                    _audioRmsLevel.value = 0f
 
-                    val matches = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
-                    if (!matches.isNullOrEmpty()) {
-                        val recognizedText = matches[0].trim()
-                        val lower = recognizedText.lowercase()
+                    override fun onRmsChanged(rmsdB: Float) {
+                        val normalized = ((rmsdB + 2f) / 12f).coerceIn(0f, 1f)
+                        _audioRmsLevel.value = normalized
+                    }
 
-                        // Voice commands to hang up call
-                        if (lower == "stop" || lower == "stop assistant" ||
-                            lower == "band karo" || lower == "exit" ||
-                            lower == "call cut" || lower == "call kato" ||
-                            lower == "phone kato" || lower == "cut karo" ||
-                            lower == "stop talking" || lower == "chup" || lower == "chup raho"
-                        ) {
-                            stopAssistantMode()
-                            return
+                    override fun onBufferReceived(buffer: ByteArray?) {}
+
+                    override fun onEndOfSpeech() {
+                        // In continuous live call mode, the microphone NEVER turns off
+                        if (!_isAssistantMode.value) {
+                            _isListening.value = false
                         }
+                        _audioRmsLevel.value = 0f
+                    }
 
-                        // Echo suppression: Ignore if the recognizer picked up the AI's own voice
-                        if (_isSpeaking.value && isAudioEcho(recognizedText, lastSpokenText)) {
-                            if (_isAssistantMode.value) {
-                                restartListeningInternal()
+                    override fun onError(error: Int) {
+                        _audioRmsLevel.value = 0f
+
+                        // IN CONTINUOUS LIVE CALL MODE: The microphone NEVER disconnects!
+                        if (_isAssistantMode.value) {
+                            _isListening.value = true
+
+                            // If AI is currently speaking, do not restart listening yet (wait for onDone)
+                            if (_isSpeaking.value) return
+
+                            // If recognizer got busy, client error, or audio error, reinitialize with safe backoff
+                            if (error == SpeechRecognizer.ERROR_CLIENT ||
+                                error == SpeechRecognizer.ERROR_RECOGNIZER_BUSY ||
+                                error == SpeechRecognizer.ERROR_AUDIO
+                            ) {
+                                mainHandler.postDelayed({
+                                    if (_isAssistantMode.value && !_isSpeaking.value) {
+                                        recreateSpeechRecognizer()
+                                        restartListeningInternal()
+                                    }
+                                }, 250)
+                            } else {
+                                // Natural pause, silence timeout (ERROR_SPEECH_TIMEOUT), or no-match: seamless loop
+                                mainHandler.postDelayed({
+                                    if (_isAssistantMode.value && !_isSpeaking.value) {
+                                        restartListeningInternal()
+                                    }
+                                }, 150)
                             }
                             return
                         }
 
-                        // If user interrupts while AI is speaking, stop speaking immediately (Full-Duplex Barge-in)
-                        if (_isSpeaking.value) {
-                            stopSpeaking()
+                        _isListening.value = false
+
+                        val msg = when (error) {
+                            SpeechRecognizer.ERROR_AUDIO -> "Audio recording error"
+                            SpeechRecognizer.ERROR_CLIENT -> "Client error"
+                            SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> "Microphone permission needed"
+                            SpeechRecognizer.ERROR_NETWORK -> "Network issue with voice"
+                            SpeechRecognizer.ERROR_NO_MATCH -> "Didn't catch that, say again babe?"
+                            SpeechRecognizer.ERROR_RECOGNIZER_BUSY -> "Voice recognizer is busy"
+                            SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> "No speech heard"
+                            else -> "Voice recognition paused"
                         }
-
-                        onSpeechRecognized?.invoke(recognizedText)
-                    }
-
-                    // In continuous call mode, seamlessly keep the mic listening non-stop!
-                    if (_isAssistantMode.value) {
-                        restartListeningInternal()
-                    }
-                }
-
-                override fun onPartialResults(partialResults: Bundle?) {
-                    // If user starts speaking while AI is speaking, barge-in immediately
-                    val matches = partialResults?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
-                    if (!matches.isNullOrEmpty() && _isSpeaking.value) {
-                        val partial = matches[0].trim()
-                        if (partial.length > 3 && !isAudioEcho(partial, lastSpokenText)) {
-                            stopSpeaking()
+                        if (error != SpeechRecognizer.ERROR_NO_MATCH && error != SpeechRecognizer.ERROR_SPEECH_TIMEOUT) {
+                            _speechError.value = msg
                         }
                     }
-                }
 
-                override fun onEvent(eventType: Int, params: Bundle?) {}
-            })
-        }
+                    override fun onResults(results: Bundle?) {
+                        // Keep call status active
+                        if (_isAssistantMode.value) {
+                            _isListening.value = true
+                        } else {
+                            _isListening.value = false
+                        }
+                        _audioRmsLevel.value = 0f
+
+                        val matches = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
+                        if (!matches.isNullOrEmpty()) {
+                            val recognizedText = matches[0].trim()
+                            if (recognizedText.isNotBlank()) {
+                                val lower = recognizedText.lowercase()
+
+                                // Voice commands to hang up call
+                                if (lower == "stop" || lower == "stop assistant" ||
+                                    lower == "band karo" || lower == "exit" ||
+                                    lower == "call cut" || lower == "call kato" ||
+                                    lower == "phone kato" || lower == "cut karo" ||
+                                    lower == "cut" || lower == "chup" || lower == "chup raho"
+                                ) {
+                                    stopAssistantMode()
+                                    return
+                                }
+
+                                // Echo suppression: Ignore if the recognizer heard the AI's own last words
+                                if (_isSpeaking.value && isAudioEcho(recognizedText, lastSpokenText)) {
+                                    return
+                                }
+
+                                // If user interrupts while AI is speaking, stop speaking immediately (Full-Duplex Barge-in)
+                                if (_isSpeaking.value) {
+                                    stopSpeaking()
+                                }
+
+                                // Forward recognized text to girlfriend AI
+                                onSpeechRecognized?.invoke(recognizedText)
+                                // Do not start listening right away while AI prepares response;
+                                // listening will resume seamlessly as soon as AI finishes speaking (onDone).
+                                return
+                            }
+                        }
+
+                        // If empty results in continuous call mode, keep listening without interruption
+                        if (_isAssistantMode.value && !_isSpeaking.value) {
+                            mainHandler.postDelayed({
+                                if (_isAssistantMode.value && !_isSpeaking.value) {
+                                    restartListeningInternal()
+                                }
+                            }, 150)
+                        }
+                    }
+
+                    override fun onPartialResults(partialResults: Bundle?) {
+                        val matches = partialResults?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
+                        if (!matches.isNullOrEmpty() && _isSpeaking.value) {
+                            val partial = matches[0].trim()
+                            if (partial.length > 3 && !isAudioEcho(partial, lastSpokenText)) {
+                                stopSpeaking()
+                            }
+                        }
+                    }
+
+                    override fun onEvent(eventType: Int, params: Bundle?) {}
+                })
+            }
+        } catch (_: Exception) {}
     }
 
     private fun recreateSpeechRecognizer() {
@@ -217,8 +238,9 @@ class VoiceManager(private val context: Context) : TextToSpeech.OnInitListener {
                 tts?.setAudioAttributes(audioAttributes)
             } catch (_: Exception) {}
 
-            tts?.language = Locale.getDefault()
-            applyBestHumanVoice(Locale.getDefault())
+            val defaultLocale = Locale.getDefault()
+            tts?.language = defaultLocale
+            applyBestHumanVoice(defaultLocale)
             tts?.setPitch(currentPitch)
             tts?.setSpeechRate(currentRate)
 
@@ -229,13 +251,13 @@ class VoiceManager(private val context: Context) : TextToSpeech.OnInitListener {
 
                 override fun onDone(utteranceId: String?) {
                     _isSpeaking.value = false
-                    // Ensure continuous microphone stays seamlessly active
+                    // Real phone call behavior: As soon as girlfriend finishes talking, mic immediately listens
                     if (_isAssistantMode.value) {
                         mainHandler.postDelayed({
                             if (_isAssistantMode.value) {
                                 restartListeningInternal()
                             }
-                        }, 50)
+                        }, 100)
                     }
                 }
 
@@ -247,7 +269,7 @@ class VoiceManager(private val context: Context) : TextToSpeech.OnInitListener {
                             if (_isAssistantMode.value) {
                                 restartListeningInternal()
                             }
-                        }, 50)
+                        }, 100)
                     }
                 }
             })
@@ -262,13 +284,23 @@ class VoiceManager(private val context: Context) : TextToSpeech.OnInitListener {
             if (matching.isNotEmpty()) {
                 val best = matching.firstOrNull { voice ->
                     val name = voice.name.lowercase()
+                    val isNeural = name.contains("network") || name.contains("neural") ||
+                            name.contains("wavenet") || name.contains("natural")
                     val isFemale = voice.features?.contains("gender=female") == true ||
-                            name.contains("female") || name.contains("-f-") || name.contains("woman") || name.contains("-f_")
+                            name.contains("female") || name.contains("-f-") ||
+                            name.contains("woman") || name.contains("-f_") ||
+                            name.contains("-d-") || name.contains("-c-")
                     val isHigh = voice.quality >= Voice.QUALITY_HIGH
-                    isFemale && isHigh
+                    (isNeural || isHigh) && isFemale
                 } ?: matching.firstOrNull { voice ->
                     val name = voice.name.lowercase()
-                    name.contains("female") || name.contains("-f-") || name.contains("woman")
+                    val isFemale = voice.features?.contains("gender=female") == true ||
+                            name.contains("female") || name.contains("-f-") ||
+                            name.contains("woman") || name.contains("-f_")
+                    isFemale
+                } ?: matching.firstOrNull { voice ->
+                    val name = voice.name.lowercase()
+                    name.contains("network") || name.contains("neural") || name.contains("natural")
                 } ?: matching.maxByOrNull { it.quality }
 
                 best?.let {
@@ -280,6 +312,9 @@ class VoiceManager(private val context: Context) : TextToSpeech.OnInitListener {
 
     fun restartListeningInternal() {
         if (!_isAssistantMode.value) return
+        if (!hasAudioPermission()) return
+        if (_isSpeaking.value) return
+
         mainHandler.post {
             val intent = createSpeechRecognizerIntent()
             try {
@@ -287,19 +322,14 @@ class VoiceManager(private val context: Context) : TextToSpeech.OnInitListener {
                 _isListening.value = true
             } catch (_: Exception) {
                 mainHandler.postDelayed({
-                    if (_isAssistantMode.value) {
+                    if (_isAssistantMode.value && !_isSpeaking.value) {
+                        recreateSpeechRecognizer()
                         try {
                             speechRecognizer?.startListening(intent)
                             _isListening.value = true
-                        } catch (_: Exception) {
-                            recreateSpeechRecognizer()
-                            try {
-                                speechRecognizer?.startListening(intent)
-                                _isListening.value = true
-                            } catch (_: Exception) {}
-                        }
+                        } catch (_: Exception) {}
                     }
-                }, 80)
+                }, 150)
             }
         }
     }
@@ -311,7 +341,7 @@ class VoiceManager(private val context: Context) : TextToSpeech.OnInitListener {
             putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, Locale.getDefault().toString())
             putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 3)
             putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
-            // Universal multilingual recognition support
+            // Universal multilingual recognition support for all Indian & global languages
             putExtra(
                 "android.speech.extra.EXTRA_ADDITIONAL_LANGUAGES",
                 arrayOf("hi-IN", "en-IN", "bn-IN", "mr-IN", "ta-IN", "te-IN", "gu-IN", "pa-IN", "ur-PK", "en-US")
@@ -320,6 +350,10 @@ class VoiceManager(private val context: Context) : TextToSpeech.OnInitListener {
     }
 
     fun startListening() {
+        if (!hasAudioPermission()) {
+            _speechError.value = "Microphone permission required"
+            return
+        }
         stopSpeaking()
         mainHandler.post {
             val intent = createSpeechRecognizerIntent()
@@ -375,6 +409,7 @@ class VoiceManager(private val context: Context) : TextToSpeech.OnInitListener {
         }
     }
 
+    // Speaks text with natural human voice, loud volume boost, and multilingual pronunciation
     fun speak(
         text: String,
         pitch: Float = currentPitch,
@@ -383,19 +418,12 @@ class VoiceManager(private val context: Context) : TextToSpeech.OnInitListener {
     ) {
         if (!isTtsReady) return
 
-        // In continuous call mode, do NOT cancel speech recognizer so the mic stays constantly active!
-        if (!_isAssistantMode.value) {
-            try {
-                speechRecognizer?.cancel()
-            } catch (_: Exception) {}
-            _isListening.value = false
-        } else {
-            _isListening.value = true
-        }
+        // In continuous call mode, UI shows call is active
+        _isListening.value = true
 
         // Apply natural human pitch & rate (prevent artificial chipmunk/robotic voice)
-        currentPitch = pitch.coerceIn(0.85f, 1.20f)
-        currentRate = rate.coerceIn(0.80f, 1.25f)
+        currentPitch = pitch.coerceIn(0.92f, 1.10f)
+        currentRate = rate.coerceIn(0.85f, 1.15f)
         tts?.setPitch(currentPitch)
         tts?.setSpeechRate(currentRate)
 
@@ -430,8 +458,8 @@ class VoiceManager(private val context: Context) : TextToSpeech.OnInitListener {
             }
         } catch (_: Exception) {}
 
-        // Thoroughly clean text to eliminate stuttering ("atakna") and emoji lag
-        val cleanText = cleanTextForSpeech(text)
+        // Thoroughly clean text to eliminate stuttering ("atakna") and emoji lag using CodePoint sanitization
+        val cleanText = sanitizeTextForNaturalVoice(text)
         if (cleanText.isBlank()) return
         lastSpokenText = cleanText
 
@@ -446,30 +474,30 @@ class VoiceManager(private val context: Context) : TextToSpeech.OnInitListener {
 
     private fun detectLanguageFromText(text: String): Locale {
         return when {
-            // Hindi / Marathi / Nepali (Devanagari)
-            text.any { it in '\u0900'..'\u097F' } -> Locale("hi", "IN")
-            // Bengali
-            text.any { it in '\u0980'..'\u09FF' } -> Locale("bn", "IN")
-            // Tamil
-            text.any { it in '\u0B80'..'\u0BFF' } -> Locale("ta", "IN")
-            // Telugu
-            text.any { it in '\u0C00'..'\u0C7F' } -> Locale("te", "IN")
-            // Gujarati
-            text.any { it in '\u0A80'..'\u0AFF' } -> Locale("gu", "IN")
-            // Punjabi
-            text.any { it in '\u0A00'..'\u0A7F' } -> Locale("pa", "IN")
-            // Kannada
-            text.any { it in '\u0C80'..'\u0CFF' } -> Locale("kn", "IN")
-            // Malayalam
-            text.any { it in '\u0D00'..'\u0D7F' } -> Locale("ml", "IN")
-            // Urdu / Arabic
-            text.any { it in '\u0600'..'\u06FF' } -> Locale("ur", "PK")
-            // Japanese
+            // Hindi / Marathi / Nepali (Devanagari script)
+            text.any { it in '\u0900'..'\u097F' } -> Locale.forLanguageTag("hi-IN")
+            // Bengali script
+            text.any { it in '\u0980'..'\u09FF' } -> Locale.forLanguageTag("bn-IN")
+            // Tamil script
+            text.any { it in '\u0B80'..'\u0BFF' } -> Locale.forLanguageTag("ta-IN")
+            // Telugu script
+            text.any { it in '\u0C00'..'\u0C7F' } -> Locale.forLanguageTag("te-IN")
+            // Gujarati script
+            text.any { it in '\u0A80'..'\u0AFF' } -> Locale.forLanguageTag("gu-IN")
+            // Punjabi script
+            text.any { it in '\u0A00'..'\u0A7F' } -> Locale.forLanguageTag("pa-IN")
+            // Kannada script
+            text.any { it in '\u0C80'..'\u0CFF' } -> Locale.forLanguageTag("kn-IN")
+            // Malayalam script
+            text.any { it in '\u0D00'..'\u0D7F' } -> Locale.forLanguageTag("ml-IN")
+            // Urdu / Arabic script
+            text.any { it in '\u0600'..'\u06FF' } -> Locale.forLanguageTag("ur-PK")
+            // Japanese script
             text.any { it in '\u3040'..'\u30FF' || it in '\u4E00'..'\u9FFF' } -> Locale.JAPANESE
-            // Korean
+            // Korean script
             text.any { it in '\uAC00'..'\uD7AF' } -> Locale.KOREAN
-            // Default to India English/Hindi for Hinglish or default locale
-            else -> Locale("en", "IN")
+            // Default to Indian English for Hinglish (Latin-script Hindi / English)
+            else -> Locale.forLanguageTag("en-IN")
         }
     }
 
@@ -480,11 +508,18 @@ class VoiceManager(private val context: Context) : TextToSpeech.OnInitListener {
             } catch (_: Exception) {}
         }
         _isSpeaking.value = false
+        if (_isAssistantMode.value) {
+            mainHandler.postDelayed({
+                if (_isAssistantMode.value) {
+                    restartListeningInternal()
+                }
+            }, 100)
+        }
     }
 
     fun updateVoiceSettings(pitch: Float, rate: Float, loudEnabled: Boolean = true, volumeLevel: Float = 1.0f) {
-        currentPitch = pitch.coerceIn(0.85f, 1.20f)
-        currentRate = rate.coerceIn(0.80f, 1.25f)
+        currentPitch = pitch.coerceIn(0.92f, 1.10f)
+        currentRate = rate.coerceIn(0.85f, 1.15f)
         isLoudVoiceBoostEnabled = loudEnabled
         userVolumeLevel = volumeLevel
         if (isTtsReady) {
@@ -506,20 +541,49 @@ class VoiceManager(private val context: Context) : TextToSpeech.OnInitListener {
         } catch (_: Exception) {}
     }
 
-    // Removes symbols, stage directions, and ellipsis to give smooth human speech without stutter
-    private fun cleanTextForSpeech(raw: String): String {
-        return raw
-            .replace(Regex("[*#_~`>]"), "")
-            .replace(Regex("\\[ACTION:[^\\]]+\\]"), "")
-            .replace(Regex("\\([^)]*\\)"), "") // Remove (smiles), (blushes), etc.
-            .replace(Regex("\\[[^\\]]*\\]"), "")
-            .replace(Regex("[\\p{So}\\p{Cn}\\p{Cs}\\p{Co}]"), "") // Emojis and unassigned symbols
-            .replace(Regex("\\.{2,}"), ", ") // Ellipsis -> natural breathing pause
-            .replace(Regex("!{2,}"), "!")
-            .replace(Regex("\\?{2,}"), "?")
-            .replace(Regex("-{2,}"), " - ")
-            .replace(Regex("\\s+"), " ")
-            .trim()
+    // CodePoint-based Unicode text sanitizer: Removes symbols, emojis, markdown, and converts pauses cleanly
+    // Eliminates TTS crashes, freezes, and speech stutter ("atakna bilkul band")
+    private fun sanitizeTextForNaturalVoice(input: String): String {
+        // 1. Remove action tags like [ACTION:WHATSAPP_OPEN]
+        var text = input.replace(Regex("\\[ACTION:[^\\]]+\\]"), "")
+        // 2. Remove stage directions like (smiles), (blushes), *whispers*
+        text = text.replace(Regex("\\([^)]*\\)"), "")
+        text = text.replace(Regex("\\[[^\\]]*\\]"), "")
+        text = text.replace(Regex("\\*+[^*]+\\*+"), "")
+        // 3. Remove all markdown characters
+        text = text.replace(Regex("[*#_~`>|\"']"), "")
+
+        // 4. Safe Unicode emoji and symbol removal using CodePoints without breaking surrogate pairs
+        val sb = StringBuilder()
+        var i = 0
+        while (i < text.length) {
+            val cp = text.codePointAt(i)
+            val charCount = Character.charCount(cp)
+            val type = Character.getType(cp)
+
+            val isEmojiOrSymbol = type == Character.SURROGATE.toInt() ||
+                    type == Character.OTHER_SYMBOL.toInt() ||
+                    type == Character.MODIFIER_SYMBOL.toInt() ||
+                    (cp in 0x1F000..0x1FAFF) ||
+                    (cp in 0x2600..0x27BF) ||
+                    (cp in 0xFE00..0xFE0F) ||
+                    (cp in 0x200D..0x200F)
+
+            if (!isEmojiOrSymbol) {
+                sb.appendCodePoint(cp)
+            }
+            i += charCount
+        }
+        text = sb.toString()
+
+        // 5. Replace multiple punctuation with natural breathing pauses (comma)
+        text = text.replace(Regex("\\.{2,}"), ", ")
+        text = text.replace(Regex("-{2,}"), ", ")
+        text = text.replace(Regex("!{2,}"), "! ")
+        text = text.replace(Regex("\\?{2,}"), "? ")
+        text = text.replace(Regex("[,;:]+"), ",")
+        // 6. Clean extra whitespaces
+        return text.replace(Regex("\\s+"), " ").trim()
     }
 
     private fun isAudioEcho(recognized: String, spoken: String): Boolean {

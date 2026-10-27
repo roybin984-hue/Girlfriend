@@ -500,9 +500,13 @@ fun LiveAnimeVoiceScreen(
             // Descriptive Subtitle
             Text(
                 text = if (uiState.isAssistantModeActive) {
-                    "📞 LIVE CALL ACTIVE • $callDurationStr • MIC ALWAYS ON 🎙️ (Band nahi hoga!)"
+                    if (uiState.isSpeaking) {
+                        "📞 CALL ACTIVE • $callDurationStr • Girlfriend Bol Rahi Hai 💕 (Mic Ready)"
+                    } else {
+                        "📞 CALL ACTIVE • $callDurationStr • MIC ALWAYS ON 🎙️ (Bolo, sun rahi hoon!)"
+                    }
                 } else {
-                    "Dil par tap karein phone call start karne ke liye ❤️ (Real Call Mode)"
+                    "Dil par tap karein phone call start karne ke liye ❤️ (Real Hands-Free Call)"
                 },
                 fontSize = 12.sp,
                 fontWeight = FontWeight.Bold,

@@ -1,5 +1,5 @@
 {
-  "name": "Aria: AI Girlfriend",
+  "name": "Aria AI",
   "description": "Your sweet, caring AI girlfriend companion who talks with voice, listens, chats in any language, and helps you open WhatsApp, send messages, post Instagram stories, and manage your day.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]

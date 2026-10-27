@@ -1,9 +1,15 @@
 package com.example
 
+import android.Manifest
+import android.content.pm.PackageManager
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.ui.platform.LocalContext
+import androidx.core.content.ContextCompat
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -117,6 +123,35 @@ class MainActivity : ComponentActivity() {
 fun GirlfriendApp(viewModel: MainViewModel = viewModel()) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     var currentTab by rememberSaveable { mutableStateOf(AppNavTab.VOICE) }
+    val context = LocalContext.current
+
+    val micPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        if (isGranted) {
+            viewModel.activateAssistantMode()
+        } else {
+            viewModel.showToast("Microphone permission zaroori hai baat karne ke liye! 🎙️")
+        }
+    }
+
+    val requestMicAndStartCall: () -> Unit = {
+        val permissionCheck = ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO)
+        if (permissionCheck == PackageManager.PERMISSION_GRANTED) {
+            viewModel.toggleAssistantMode()
+        } else {
+            micPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+        }
+    }
+
+    val requestMicAndToggle: () -> Unit = {
+        val permissionCheck = ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO)
+        if (permissionCheck == PackageManager.PERMISSION_GRANTED) {
+            viewModel.toggleVoiceListening()
+        } else {
+            micPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+        }
+    }
 
     // If Server Maintenance Mode is active in Firebase, block screen and show Maintenance UI
     if (uiState.serverConfig.maintenanceMode || !uiState.serverConfig.serverActive) {
@@ -149,7 +184,7 @@ fun GirlfriendApp(viewModel: MainViewModel = viewModel()) {
                             uiState = uiState,
                             onTextChanged = viewModel::onInputTextChanged,
                             onSendMessage = { viewModel.sendMessage(uiState.inputText) },
-                            onToggleMic = viewModel::toggleVoiceListening
+                            onToggleMic = requestMicAndToggle
                         )
                     }
 
@@ -245,9 +280,9 @@ fun GirlfriendApp(viewModel: MainViewModel = viewModel()) {
                     AppNavTab.VOICE -> {
                         LiveAnimeVoiceScreen(
                             uiState = uiState,
-                            onToggleAssistantMode = viewModel::toggleAssistantMode,
+                            onToggleAssistantMode = requestMicAndStartCall,
                             onStopAssistantMode = viewModel::stopAssistantMode,
-                            onToggleMic = viewModel::toggleVoiceListening,
+                            onToggleMic = requestMicAndToggle,
                             onToggleVoice = viewModel::toggleAutoSpeak,
                             onSendQuickCommand = viewModel::sendMessage,
                             onAvatarTouch = {
