@@ -45,6 +45,7 @@ import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.MicOff
 import androidx.compose.material.icons.filled.RecordVoiceOver
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.SportsEsports
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.CircularProgressIndicator
@@ -252,11 +253,11 @@ fun GirlfriendApp(viewModel: MainViewModel = viewModel()) {
                             onClick = { currentTab = AppNavTab.PROFILE },
                             icon = {
                                 Icon(
-                                    imageVector = Icons.Default.Tune,
-                                    contentDescription = "Voice & Settings"
+                                    imageVector = Icons.Default.Settings,
+                                    contentDescription = "Settings"
                                 )
                             },
-                            label = { Text("Voice Style", fontSize = 11.sp, fontWeight = FontWeight.SemiBold) },
+                            label = { Text("Settings", fontSize = 11.sp, fontWeight = FontWeight.SemiBold) },
                             colors = NavigationBarItemDefaults.colors(
                                 selectedIconColor = RosePrimary,
                                 selectedTextColor = RosePrimary,

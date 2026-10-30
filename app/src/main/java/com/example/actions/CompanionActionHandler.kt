@@ -216,12 +216,6 @@ class CompanionActionHandler(private val context: Context) {
 
     fun openYouTube(query: String): String {
         val clean = query.trim()
-        val url = if (clean.isNotBlank()) {
-            "https://www.youtube.com/results?search_query=${URLEncoder.encode(clean, "UTF-8")}"
-        } else {
-            "https://www.youtube.com"
-        }
-
         val ytPackage = "com.google.android.youtube"
         val isYtInstalled = try {
             context.packageManager.getPackageInfo(ytPackage, 0)
@@ -230,22 +224,40 @@ class CompanionActionHandler(private val context: Context) {
             false
         }
 
-        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url)).apply {
-            if (isYtInstalled) {
-                setPackage(ytPackage)
-            }
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        // Support direct video IDs, deep links, or search queries
+        val uri = when {
+            clean.isBlank() -> Uri.parse("https://www.youtube.com")
+            clean.startsWith("vnd.youtube:") -> Uri.parse(clean)
+            clean.startsWith("http://") || clean.startsWith("https://") -> Uri.parse(clean)
+            clean.matches(Regex("^[a-zA-Z0-9_-]{11}$")) -> Uri.parse("vnd.youtube:$clean")
+            else -> Uri.parse("https://www.youtube.com/results?search_query=${URLEncoder.encode(clean, "UTF-8")}")
         }
 
+        if (isYtInstalled) {
+            try {
+                val appIntent = Intent(Intent.ACTION_VIEW, uri).apply {
+                    setPackage(ytPackage)
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+                context.startActivity(appIntent)
+                return if (clean.isNotBlank()) "Playing '$clean' on YouTube! 🎵📺" else "Opening YouTube! 🎵"
+            } catch (_: Exception) {}
+        }
+
+        val fallbackUri = if (uri.scheme == "vnd.youtube") {
+            Uri.parse("https://www.youtube.com/watch?v=${uri.schemeSpecificPart}")
+        } else {
+            uri
+        }
+
+        val fallbackIntent = Intent(Intent.ACTION_VIEW, fallbackUri).apply {
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
         return try {
-            context.startActivity(intent)
-            if (clean.isNotBlank()) "Playing '$clean' on YouTube for you, darling! 🎵📺" else "Opening YouTube for you! 🎵"
-        } catch (_: Exception) {
-            val fallbackIntent = Intent(Intent.ACTION_VIEW, Uri.parse(url)).apply {
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            }
             context.startActivity(fallbackIntent)
-            if (clean.isNotBlank()) "Opening YouTube for '$clean'! 🎵" else "Opening YouTube in browser! 🎵"
+            if (clean.isNotBlank()) "Playing '$clean' on YouTube! 🎵" else "Opening YouTube! 🎵"
+        } catch (e: Exception) {
+            "Couldn't launch YouTube: ${e.localizedMessage}"
         }
     }
 

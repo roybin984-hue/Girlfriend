@@ -27,18 +27,27 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ScreenShare
 import androidx.compose.material.icons.automirrored.filled.StopScreenShare
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Divider
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -47,7 +56,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
-import kotlinx.coroutines.delay
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
@@ -58,6 +66,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
 import com.example.ui.MainUiState
 import com.example.ui.components.AnimatedGirlfriendCharacter
 import com.example.ui.components.AudioWaveIndicator
@@ -65,6 +74,7 @@ import com.example.ui.theme.HeartRed
 import com.example.ui.theme.RoseDarkBackground
 import com.example.ui.theme.RosePrimary
 import com.example.ui.theme.RoseSecondary
+import kotlinx.coroutines.delay
 
 @Composable
 fun LiveAnimeVoiceScreen(
@@ -80,6 +90,8 @@ fun LiveAnimeVoiceScreen(
     onSelectCharacter: (String, Float, Float) -> Unit = { _, _, _ -> },
     modifier: Modifier = Modifier
 ) {
+    var showSettingsPanel by remember { mutableStateOf(false) }
+
     val infiniteTransition = rememberInfiniteTransition(label = "voice_ui_effects")
 
     // Realistic cardiac heartbeat animation when active ("Dil Dhadakta Hai")
@@ -156,16 +168,17 @@ fun LiveAnimeVoiceScreen(
             .fillMaxSize()
             .background(RoseDarkBackground)
     ) {
-        // Anime Girlfriend Character with natural physics body swaying & realistic lip-sync mouth
+        // Anime Character Avatar with speech-coordinated lip-sync visemes and zero rigging displacement
         AnimatedGirlfriendCharacter(
             isSpeaking = uiState.isSpeaking,
             isListening = uiState.isListening,
             onCharacterTouch = onAvatarTouch,
             characterName = uiState.profile.name,
+            audioLevel = uiState.audioRms,
             modifier = Modifier.fillMaxSize()
         )
 
-        // Top Status Header with Screen Share Switch & Audio Toggle
+        // Top Status Header with Status Chip and Unified Settings Button
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -174,7 +187,7 @@ fun LiveAnimeVoiceScreen(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Live Status Badge
+            // Live Status Indicator Pill
             Surface(
                 shape = RoundedCornerShape(20.dp),
                 color = Color.Black.copy(alpha = 0.65f),
@@ -184,7 +197,7 @@ fun LiveAnimeVoiceScreen(
                 )
             ) {
                 Row(
-                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Box(
@@ -202,7 +215,7 @@ fun LiveAnimeVoiceScreen(
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(
                         text = when {
-                            uiState.isAssistantModeActive -> "🎙️ Ayra Active: $callDurationStr"
+                            uiState.isAssistantModeActive -> "Ayra Active: $callDurationStr"
                             uiState.isSpeaking -> "Speaking 💋"
                             uiState.isListening -> "Listening... 🎙️"
                             else -> "Ayra AI 🌸"
@@ -214,81 +227,24 @@ fun LiveAnimeVoiceScreen(
                 }
             }
 
-            // Screen Share On/Off Toggle Button
-            Surface(
-                shape = RoundedCornerShape(20.dp),
-                color = if (isScreenShareActive) HeartRed.copy(alpha = 0.85f) else Color.Black.copy(alpha = 0.65f),
-                border = androidx.compose.foundation.BorderStroke(
-                    1.dp,
-                    if (isScreenShareActive) HeartRed else Color.White.copy(alpha = 0.3f)
-                ),
-                modifier = Modifier.clickable {
-                    onToggleScreenShare(!isScreenShareActive)
-                }
+            // Unified Settings Button (Strictly limits UI control overlays to this unified panel)
+            IconButton(
+                onClick = { showSettingsPanel = true },
+                modifier = Modifier
+                    .size(38.dp)
+                    .background(Color.Black.copy(alpha = 0.65f), CircleShape)
+                    .testTag("open_unified_settings_btn")
             ) {
-                Row(
-                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(
-                        imageVector = if (isScreenShareActive) Icons.AutoMirrored.Filled.ScreenShare else Icons.AutoMirrored.Filled.StopScreenShare,
-                        contentDescription = "Screen Share",
-                        tint = Color.White,
-                        modifier = Modifier.size(16.dp)
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text(
-                        text = if (isScreenShareActive) "Screen: ON 🔴" else "Screen Share",
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.White
-                    )
-                }
+                Icon(
+                    imageVector = Icons.Default.Settings,
+                    contentDescription = "Ayra Settings",
+                    tint = Color.White,
+                    modifier = Modifier.size(20.dp)
+                )
             }
         }
 
-        // Quick Anime Waifu Persona Selector (Hinata, Ayra, Sakura, Tsunade)
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(top = 58.dp, start = 14.dp, end = 14.dp)
-                .align(Alignment.TopCenter)
-                .horizontalScroll(rememberScrollState()),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            val personas = listOf(
-                Triple("Hinata 🌸", 1.28f, 0.94f),
-                Triple("Ayra ❤️", 1.22f, 1.0f),
-                Triple("Sakura ⚡", 1.26f, 1.02f),
-                Triple("Tsunade 🌙", 1.18f, 0.96f),
-                Triple("Sweet Waifu 🌺", 1.25f, 0.98f)
-            )
-            personas.forEach { (pName, pPitch, pRate) ->
-                val rawName = pName.substringBefore(" ")
-                val isSelected = uiState.profile.name.contains(rawName, ignoreCase = true)
-                Surface(
-                    shape = RoundedCornerShape(16.dp),
-                    color = if (isSelected) RosePrimary.copy(alpha = 0.92f) else Color.Black.copy(alpha = 0.6f),
-                    border = androidx.compose.foundation.BorderStroke(
-                        1.dp,
-                        if (isSelected) Color.White else Color.White.copy(alpha = 0.25f)
-                    ),
-                    modifier = Modifier.clickable {
-                        onSelectCharacter(rawName, pPitch, pRate)
-                    }
-                ) {
-                    Text(
-                        text = pName,
-                        fontSize = 11.sp,
-                        fontWeight = if (isSelected) FontWeight.ExtraBold else FontWeight.Medium,
-                        color = Color.White,
-                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
-                    )
-                }
-            }
-        }
-
-        // Bottom Section: Dialogue Subtitles + Quick Action Chips + Beating Heart Voice Assistant
+        // Bottom Section: Dialogue Subtitles & Glowing Pulsing Heartbeat Indicator
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -319,14 +275,16 @@ fun LiveAnimeVoiceScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            text = "${uiState.profile.name} (Live Voice) 💕",
+                            text = "${uiState.profile.name} ❤️",
                             fontSize = 12.sp,
-                            fontWeight = FontWeight.ExtraBold,
-                            color = RoseSecondary
+                            fontWeight = FontWeight.Bold,
+                            color = RosePrimary
                         )
+
                         if (uiState.isSpeaking) {
                             AudioWaveIndicator(
                                 isLive = true,
+                                barCount = 4,
                                 barColor = RosePrimary,
                                 maxHeight = 16.dp
                             )
@@ -344,51 +302,9 @@ fun LiveAnimeVoiceScreen(
                 }
             }
 
-            Spacer(modifier = Modifier.height(10.dp))
-
-            // Quick Voice Action Chips (including Play Store Install, battery, time, flashlight, games)
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                val chips = listOf(
-                    "📲 Play Store se Free Fire install karo",
-                    "📲 Play Store se BGMI download karo",
-                    "🔋 Battery kitni hai?",
-                    "⏰ Time kya hua?",
-                    "🔦 Torch on karo",
-                    "🎮 Open Free Fire",
-                    "💬 Open WhatsApp",
-                    "💌 Send WhatsApp Hello",
-                    "📸 Post Insta Story",
-                    "🏃 Open Subway Surfers",
-                    "📞 Call someone"
-                )
-                chips.forEach { chipText ->
-                    Surface(
-                        shape = RoundedCornerShape(16.dp),
-                        color = Color.White.copy(alpha = 0.18f),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.25f)),
-                        modifier = Modifier.clickable {
-                            onSendQuickCommand(chipText.replace(Regex("^[\\p{So}\\p{Cn}]+\\s*"), ""))
-                        }
-                    ) {
-                        Text(
-                            text = chipText,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Medium,
-                            color = Color.White,
-                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
-                        )
-                    }
-                }
-            }
-
             Spacer(modifier = Modifier.height(14.dp))
 
-            // Pulsing Heartbeat Indicator (Non-call termination interface, continuous mic streaming)
+            // Glowing Pulsing Heartbeat Indicator (Replaces standard call-termination controls)
             Box(
                 modifier = Modifier
                     .size(100.dp)
@@ -465,7 +381,7 @@ fun LiveAnimeVoiceScreen(
                 Text(
                     text = if (uiState.isAssistantModeActive) {
                         if (uiState.isSpeaking) {
-                            "Ayra Bol Rahi Hai... 💕 (Mic Ready)"
+                            "Ayra Bol Rahi Hai... 💕 (Mic Streaming)"
                         } else {
                             "🎙️ AYRA LISTENING • CONTINUOUS MIC STREAMING ACTIVE"
                         }
@@ -485,15 +401,229 @@ fun LiveAnimeVoiceScreen(
             // Subtitle
             Text(
                 text = if (uiState.isAssistantModeActive) {
-                    "Pulsing Heartbeat Indicator • Continuous Mic Streaming • Active in Background & Minimized"
+                    "Pulsing Heartbeat Indicator • Continuous Streaming Active (Android 6 - 17)"
                 } else {
-                    "Always-Listening AI Assistant Ayra • Tap Heartbeat • Controls YouTube & Apps"
+                    "Always-Listening AI Assistant Ayra • Tap Heartbeat to Start"
                 },
                 fontSize = 11.sp,
                 fontWeight = FontWeight.Medium,
                 color = Color.White.copy(alpha = 0.75f),
                 textAlign = TextAlign.Center
             )
+        }
+    }
+
+    // Unified Settings Panel (Advanced feature toggles modal)
+    if (showSettingsPanel) {
+        Dialog(onDismissRequest = { showSettingsPanel = false }) {
+            Surface(
+                shape = RoundedCornerShape(24.dp),
+                color = MaterialTheme.colorScheme.surface,
+                tonalElevation = 8.dp,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 12.dp)
+                    .testTag("unified_settings_dialog")
+            ) {
+                Column(
+                    modifier = Modifier
+                        .padding(20.dp)
+                        .verticalScroll(rememberScrollState())
+                ) {
+                    // Header
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column {
+                            Text(
+                                text = "Settings & Feature Toggles",
+                                fontSize = 18.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Text(
+                                text = "Ayra Always-Listening AI Assistant",
+                                fontSize = 11.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+
+                        IconButton(onClick = { showSettingsPanel = false }) {
+                            Icon(
+                                imageVector = Icons.Default.Close,
+                                contentDescription = "Close Settings",
+                                tint = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(16.dp))
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    // 1. Live Screen Sharing Toggle
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Live Screen Sharing",
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Text(
+                                text = "Analyze games and screen content in real-time",
+                                fontSize = 11.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Switch(
+                            checked = isScreenShareActive,
+                            onCheckedChange = { onToggleScreenShare(it) },
+                            colors = SwitchDefaults.colors(checkedThumbColor = Color.White, checkedTrackColor = RosePrimary)
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(14.dp))
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    // 2. Character Persona Selector
+                    Text(
+                        text = "Persona & Character Voice",
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    val personas = listOf(
+                        Triple("Ayra ❤️", 1.22f, 1.0f),
+                        Triple("Hinata 🌸", 1.28f, 0.94f),
+                        Triple("Sakura ⚡", 1.26f, 1.02f),
+                        Triple("Tsunade 🌙", 1.18f, 0.96f)
+                    )
+
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        personas.forEach { (pName, pPitch, pRate) ->
+                            val rawName = pName.substringBefore(" ")
+                            val isSelected = uiState.profile.name.contains(rawName, ignoreCase = true)
+                            Surface(
+                                shape = RoundedCornerShape(14.dp),
+                                color = if (isSelected) RosePrimary else MaterialTheme.colorScheme.surfaceVariant,
+                                modifier = Modifier.clickable {
+                                    onSelectCharacter(rawName, pPitch, pRate)
+                                }
+                            ) {
+                                Text(
+                                    text = pName,
+                                    fontSize = 12.sp,
+                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                    color = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
+                                )
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(14.dp))
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    // 3. Persistent Background Microphone Info
+                    Column {
+                        Text(
+                            text = "Persistent Background Execution",
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "Ayra runs continuous microphone capture via foreground service, persisting when the app is minimized or backgrounded across Android 6 through 17.",
+                            fontSize = 11.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(14.dp))
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    // 4. Quick Voice Command Hooks (YouTube & App Launcher)
+                    Text(
+                        text = "Quick Voice Commands & Hooks",
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    val commands = listOf(
+                        "Play lo-fi music on YouTube",
+                        "Open WhatsApp",
+                        "Check battery",
+                        "Torch on karo",
+                        "Open Free Fire",
+                        "Call someone"
+                    )
+
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        commands.forEach { cmd ->
+                            Surface(
+                                shape = RoundedCornerShape(10.dp),
+                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        showSettingsPanel = false
+                                        onSendQuickCommand(cmd)
+                                    }
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.PlayArrow,
+                                        contentDescription = null,
+                                        tint = RosePrimary,
+                                        modifier = Modifier.size(14.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(
+                                        text = cmd,
+                                        fontSize = 12.sp,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    Button(
+                        onClick = { showSettingsPanel = false },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(containerColor = RosePrimary),
+                        shape = RoundedCornerShape(14.dp)
+                    ) {
+                        Text("Done", fontWeight = FontWeight.Bold, color = Color.White)
+                    }
+                }
+            }
         }
     }
 }
