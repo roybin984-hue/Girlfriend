@@ -152,7 +152,7 @@ fun OnboardingDialog(
                 ) {
                     Image(
                         painter = painterResource(id = R.drawable.img_anime_gf_live),
-                        contentDescription = "Aria Anime Girlfriend",
+                        contentDescription = "Ayra AI Assistant",
                         contentScale = ContentScale.Crop,
                         modifier = Modifier.matchParentSize()
                     )
@@ -170,7 +170,7 @@ fun OnboardingDialog(
                 Spacer(modifier = Modifier.height(4.dp))
 
                 Text(
-                    text = "I'm Aria! I talk with live voice, listen to you, open WhatsApp, share Insta stories, and coach you while gaming! 🌸",
+                    text = "I'm Ayra! Always-listening AI assistant with continuous voice streaming, pulsing heartbeat, and YouTube media controls! 🌸",
                     fontSize = 13.sp,
                     lineHeight = 18.sp,
                     textAlign = TextAlign.Center,
@@ -395,7 +395,7 @@ fun OnboardingDialog(
                     )
                 ) {
                     Text(
-                        text = "Start Talking With Aria ❤️",
+                        text = "Start Talking With Ayra ❤️",
                         fontSize = 14.sp,
                         fontWeight = FontWeight.Bold,
                         color = if (hasMicPermission) Color.White else MaterialTheme.colorScheme.onPrimaryContainer

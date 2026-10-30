@@ -5,10 +5,13 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.media.AudioAttributes
+import android.media.AudioDeviceInfo
 import android.media.AudioManager
+import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.os.PowerManager
 import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
@@ -46,11 +49,14 @@ class VoiceManager(private val context: Context) : TextToSpeech.OnInitListener {
     private var isLoudVoiceBoostEnabled: Boolean = true
     private var userVolumeLevel: Float = 1.0f
 
-    // Natural human conversational pitch (1.02f) - eliminates robotic/chipmunk sound
-    private var currentPitch: Float = 1.02f
+    // Natural sweet human female pitch (1.22f) - guarantees sweet girlfriend/anime voice (NEVER male!)
+    private var currentPitch: Float = 1.22f
     private var currentRate: Float = 0.98f
     private var isTtsReady = false
     private var lastSpokenText: String = ""
+
+    private var wakeLock: PowerManager.WakeLock? = null
+    private var responseWatchdogRunnable: Runnable? = null
 
     var onSpeechRecognized: ((String) -> Unit)? = null
 
@@ -93,8 +99,10 @@ class VoiceManager(private val context: Context) : TextToSpeech.OnInitListener {
                     override fun onBufferReceived(buffer: ByteArray?) {}
 
                     override fun onEndOfSpeech() {
-                        // In continuous live call mode, the microphone NEVER turns off
-                        if (!_isAssistantMode.value) {
+                        // IN LIVE CALL MODE: Microphone NEVER turns off when user pauses or stops speaking!
+                        if (_isAssistantMode.value) {
+                            _isListening.value = true
+                        } else {
                             _isListening.value = false
                         }
                         _audioRmsLevel.value = 0f
@@ -110,42 +118,30 @@ class VoiceManager(private val context: Context) : TextToSpeech.OnInitListener {
                             // If AI is currently speaking, do not restart listening yet (wait for onDone)
                             if (_isSpeaking.value) return
 
-                            // If recognizer got busy, client error, or audio error, reinitialize with safe backoff
-                            if (error == SpeechRecognizer.ERROR_CLIENT ||
-                                error == SpeechRecognizer.ERROR_RECOGNIZER_BUSY ||
-                                error == SpeechRecognizer.ERROR_AUDIO
-                            ) {
-                                mainHandler.postDelayed({
-                                    if (_isAssistantMode.value && !_isSpeaking.value) {
-                                        recreateSpeechRecognizer()
-                                        restartListeningInternal()
-                                    }
-                                }, 250)
-                            } else {
-                                // Natural pause, silence timeout (ERROR_SPEECH_TIMEOUT), or no-match: seamless loop
-                                mainHandler.postDelayed({
-                                    if (_isAssistantMode.value && !_isSpeaking.value) {
-                                        restartListeningInternal()
-                                    }
-                                }, 150)
+                            // If recognizer got busy or client error, reinitialize with small backoff
+                            val retryDelay = when (error) {
+                                SpeechRecognizer.ERROR_CLIENT,
+                                SpeechRecognizer.ERROR_RECOGNIZER_BUSY,
+                                SpeechRecognizer.ERROR_AUDIO -> {
+                                    recreateSpeechRecognizer()
+                                    120L
+                                }
+                                SpeechRecognizer.ERROR_NO_MATCH,
+                                SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> 80L
+                                else -> 100L
                             }
+
+                            mainHandler.postDelayed({
+                                if (_isAssistantMode.value && !_isSpeaking.value) {
+                                    restartListeningInternal()
+                                }
+                            }, retryDelay)
                             return
                         }
 
                         _isListening.value = false
-
-                        val msg = when (error) {
-                            SpeechRecognizer.ERROR_AUDIO -> "Audio recording error"
-                            SpeechRecognizer.ERROR_CLIENT -> "Client error"
-                            SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> "Microphone permission needed"
-                            SpeechRecognizer.ERROR_NETWORK -> "Network issue with voice"
-                            SpeechRecognizer.ERROR_NO_MATCH -> "Didn't catch that, say again babe?"
-                            SpeechRecognizer.ERROR_RECOGNIZER_BUSY -> "Voice recognizer is busy"
-                            SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> "No speech heard"
-                            else -> "Voice recognition paused"
-                        }
                         if (error != SpeechRecognizer.ERROR_NO_MATCH && error != SpeechRecognizer.ERROR_SPEECH_TIMEOUT) {
-                            _speechError.value = msg
+                            _speechError.value = "Voice recognition paused"
                         }
                     }
 
@@ -164,12 +160,12 @@ class VoiceManager(private val context: Context) : TextToSpeech.OnInitListener {
                             if (recognizedText.isNotBlank()) {
                                 val lower = recognizedText.lowercase()
 
-                                // Voice commands to hang up call
-                                if (lower == "stop" || lower == "stop assistant" ||
+                                // Voice commands to explicitly stop assistant
+                                if (lower == "stop" || lower == "stop ayra" || lower == "ayra stop" ||
+                                    lower == "stop listening" || lower == "stop assistant" ||
                                     lower == "band karo" || lower == "exit" ||
-                                    lower == "call cut" || lower == "call kato" ||
-                                    lower == "phone kato" || lower == "cut karo" ||
-                                    lower == "cut" || lower == "chup" || lower == "chup raho"
+                                    lower == "chup" || lower == "chup raho" ||
+                                    lower == "bye" || lower == "bye bye" || lower == "alvida"
                                 ) {
                                     stopAssistantMode()
                                     return
@@ -177,6 +173,9 @@ class VoiceManager(private val context: Context) : TextToSpeech.OnInitListener {
 
                                 // Echo suppression: Ignore if the recognizer heard the AI's own last words
                                 if (_isSpeaking.value && isAudioEcho(recognizedText, lastSpokenText)) {
+                                    if (_isAssistantMode.value && !_isSpeaking.value) {
+                                        restartListeningInternal()
+                                    }
                                     return
                                 }
 
@@ -187,8 +186,10 @@ class VoiceManager(private val context: Context) : TextToSpeech.OnInitListener {
 
                                 // Forward recognized text to girlfriend AI
                                 onSpeechRecognized?.invoke(recognizedText)
-                                // Do not start listening right away while AI prepares response;
-                                // listening will resume seamlessly as soon as AI finishes speaking (onDone).
+
+                                // Safety watchdog timer (3.5 seconds): If network fails or AI is slow,
+                                // ensure recognizer automatically re-arms so mic is NEVER left dead!
+                                scheduleResponseWatchdog()
                                 return
                             }
                         }
@@ -199,7 +200,7 @@ class VoiceManager(private val context: Context) : TextToSpeech.OnInitListener {
                                 if (_isAssistantMode.value && !_isSpeaking.value) {
                                     restartListeningInternal()
                                 }
-                            }, 150)
+                            }, 80)
                         }
                     }
 
@@ -227,25 +228,57 @@ class VoiceManager(private val context: Context) : TextToSpeech.OnInitListener {
         initSpeechRecognizer()
     }
 
+    private fun scheduleResponseWatchdog() {
+        cancelResponseWatchdog()
+        val watchdog = Runnable {
+            if (_isAssistantMode.value && !_isSpeaking.value) {
+                restartListeningInternal()
+            }
+        }
+        responseWatchdogRunnable = watchdog
+        mainHandler.postDelayed(watchdog, 3500)
+    }
+
+    private fun cancelResponseWatchdog() {
+        responseWatchdogRunnable?.let { mainHandler.removeCallbacks(it) }
+        responseWatchdogRunnable = null
+    }
+
     override fun onInit(status: Int) {
         if (status == TextToSpeech.SUCCESS) {
             isTtsReady = true
             try {
                 val audioAttributes = AudioAttributes.Builder()
-                    .setUsage(AudioAttributes.USAGE_ASSISTANCE_NAVIGATION_GUIDANCE)
+                    .setUsage(AudioAttributes.USAGE_MEDIA)
                     .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
                     .build()
                 tts?.setAudioAttributes(audioAttributes)
             } catch (_: Exception) {}
+            routeAudioToSpeaker()
 
-            val defaultLocale = Locale.getDefault()
-            tts?.language = defaultLocale
-            applyBestHumanVoice(defaultLocale)
+            val defaultLocale = Locale.forLanguageTag("hi-IN")
+            try {
+                if (tts?.isLanguageAvailable(defaultLocale) in listOf(
+                        TextToSpeech.LANG_AVAILABLE,
+                        TextToSpeech.LANG_COUNTRY_AVAILABLE,
+                        TextToSpeech.LANG_COUNTRY_VAR_AVAILABLE
+                    )
+                ) {
+                    tts?.language = defaultLocale
+                } else {
+                    tts?.language = Locale.getDefault()
+                }
+            } catch (_: Exception) {
+                tts?.language = Locale.getDefault()
+            }
+
+            applyBestHumanVoice(tts?.language ?: Locale.getDefault())
             tts?.setPitch(currentPitch)
             tts?.setSpeechRate(currentRate)
 
             tts?.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
                 override fun onStart(utteranceId: String?) {
+                    cancelResponseWatchdog()
                     _isSpeaking.value = true
                 }
 
@@ -257,7 +290,7 @@ class VoiceManager(private val context: Context) : TextToSpeech.OnInitListener {
                             if (_isAssistantMode.value) {
                                 restartListeningInternal()
                             }
-                        }, 100)
+                        }, 80)
                     }
                 }
 
@@ -269,43 +302,109 @@ class VoiceManager(private val context: Context) : TextToSpeech.OnInitListener {
                             if (_isAssistantMode.value) {
                                 restartListeningInternal()
                             }
-                        }, 100)
+                        }, 80)
                     }
                 }
             })
         }
     }
 
-    // Finds and applies the most natural, high-quality human-like female/neural voice
+    private fun isMaleVoice(voice: Voice): Boolean {
+        val name = voice.name.lowercase()
+        val features = voice.features ?: emptySet()
+        if (features.contains("gender=male")) return true
+        if (name.contains("male") && !name.contains("female")) return true
+        if (name.contains("man") && !name.contains("woman")) return true
+        // Known male voice identifiers across Google TTS, Samsung, and Android engines
+        val maleSignatures = listOf(
+            "-hia-", "-hid-", "-ahd-", "-end-", "-iob-", "-iom-",
+            "-iog-", "-iol-", "-m-", "-m_", "_m_", "voice_m",
+            "male-1", "male-2", "male-3", "male-4"
+        )
+        return maleSignatures.any { name.contains(it) }
+    }
+
+    private fun isFemaleVoice(voice: Voice): Boolean {
+        if (isMaleVoice(voice)) return false
+        val name = voice.name.lowercase()
+        val features = voice.features ?: emptySet()
+        if (features.contains("gender=female")) return true
+        if (name.contains("female") || name.contains("woman") || name.contains("girl")) return true
+        // Known high-quality female voice identifiers in Google & Android TTS
+        val femaleSignatures = listOf(
+            "-hie-", "-fic-", "-cxx-", "-efe-", "-cfc-", "-ahf-",
+            "-sfg-", "-tpd-", "-ioc-", "-iof-", "-f-", "-f_", "_f_",
+            "voice_f", "female-1", "female-2", "female-3"
+        )
+        return femaleSignatures.any { name.contains(it) }
+    }
+
+    // Finds and applies the most natural human-like female neural voice (NEVER male!)
     private fun applyBestHumanVoice(locale: Locale) {
         try {
-            val voices = tts?.voices ?: return
-            val matching = voices.filter { it.locale.language.equals(locale.language, ignoreCase = true) }
-            if (matching.isNotEmpty()) {
-                val best = matching.firstOrNull { voice ->
-                    val name = voice.name.lowercase()
-                    val isNeural = name.contains("network") || name.contains("neural") ||
-                            name.contains("wavenet") || name.contains("natural")
-                    val isFemale = voice.features?.contains("gender=female") == true ||
-                            name.contains("female") || name.contains("-f-") ||
-                            name.contains("woman") || name.contains("-f_") ||
-                            name.contains("-d-") || name.contains("-c-")
-                    val isHigh = voice.quality >= Voice.QUALITY_HIGH
-                    (isNeural || isHigh) && isFemale
-                } ?: matching.firstOrNull { voice ->
-                    val name = voice.name.lowercase()
-                    val isFemale = voice.features?.contains("gender=female") == true ||
-                            name.contains("female") || name.contains("-f-") ||
-                            name.contains("woman") || name.contains("-f_")
-                    isFemale
-                } ?: matching.firstOrNull { voice ->
-                    val name = voice.name.lowercase()
-                    name.contains("network") || name.contains("neural") || name.contains("natural")
-                } ?: matching.maxByOrNull { it.quality }
+            val allVoices = tts?.voices ?: return
+            if (allVoices.isEmpty()) return
 
-                best?.let {
-                    tts?.voice = it
+            // Strictly filter out all male voices
+            val nonMaleVoices = allVoices.filter { !isMaleVoice(it) }
+
+            // 1. Search in target locale for neural female voice
+            val targetLocaleVoices = nonMaleVoices.filter {
+                it.locale.language.equals(locale.language, ignoreCase = true)
+            }
+
+            val bestTargetFemale = targetLocaleVoices.firstOrNull { voice ->
+                val name = voice.name.lowercase()
+                val isNeural = name.contains("network") || name.contains("neural") ||
+                        name.contains("wavenet") || name.contains("natural")
+                isFemaleVoice(voice) && (isNeural || voice.quality >= Voice.QUALITY_HIGH)
+            } ?: targetLocaleVoices.firstOrNull { isFemaleVoice(it) }
+            ?: targetLocaleVoices.firstOrNull { !isMaleVoice(it) }
+
+            if (bestTargetFemale != null) {
+                tts?.voice = bestTargetFemale
+                return
+            }
+
+            // 2. Fallback to Indian English or Hindi female neural voice
+            val indianFemaleVoice = nonMaleVoices.firstOrNull { voice ->
+                val l = voice.locale.language.lowercase()
+                val c = voice.locale.country.lowercase()
+                (l == "hi" || c == "in" || l == "en") && isFemaleVoice(voice) &&
+                        (voice.name.lowercase().contains("network") || voice.quality >= Voice.QUALITY_HIGH)
+            } ?: nonMaleVoices.firstOrNull { voice ->
+                isFemaleVoice(voice)
+            } ?: nonMaleVoices.firstOrNull { !isMaleVoice(it) }
+
+            if (indianFemaleVoice != null) {
+                tts?.voice = indianFemaleVoice
+            }
+        } catch (_: Exception) {}
+    }
+
+    // Directs realistic female voice to loudspeaker output across Android versions (Android 6 - 17)
+    fun routeAudioToSpeaker() {
+        try {
+            val am = audioManager ?: (context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager) ?: return
+
+            // Ensure media speaker stream volume is set to clear high level
+            val maxVol = am.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
+            val currentVol = am.getStreamVolume(AudioManager.STREAM_MUSIC)
+            val targetVol = (maxVol * 0.92f).toInt().coerceAtLeast(1)
+            if (currentVol < targetVol) {
+                am.setStreamVolume(AudioManager.STREAM_MUSIC, targetVol, 0)
+            }
+
+            // Route audio strictly to speaker output
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                val devices = am.availableCommunicationDevices
+                val speakerDevice = devices.firstOrNull { it.type == AudioDeviceInfo.TYPE_BUILTIN_SPEAKER }
+                if (speakerDevice != null) {
+                    am.setCommunicationDevice(speakerDevice)
                 }
+            } else {
+                @Suppress("DEPRECATION")
+                am.isSpeakerphoneOn = true
             }
         } catch (_: Exception) {}
     }
@@ -316,6 +415,7 @@ class VoiceManager(private val context: Context) : TextToSpeech.OnInitListener {
         if (_isSpeaking.value) return
 
         mainHandler.post {
+            if (!_isAssistantMode.value || _isSpeaking.value) return@post
             val intent = createSpeechRecognizerIntent()
             try {
                 speechRecognizer?.startListening(intent)
@@ -329,7 +429,7 @@ class VoiceManager(private val context: Context) : TextToSpeech.OnInitListener {
                             _isListening.value = true
                         } catch (_: Exception) {}
                     }
-                }, 150)
+                }, 100)
             }
         }
     }
@@ -350,41 +450,33 @@ class VoiceManager(private val context: Context) : TextToSpeech.OnInitListener {
     }
 
     fun startListening() {
-        if (!hasAudioPermission()) {
-            _speechError.value = "Microphone permission required"
-            return
-        }
-        stopSpeaking()
-        mainHandler.post {
-            val intent = createSpeechRecognizerIntent()
-            try {
-                speechRecognizer?.startListening(intent)
-                _isListening.value = true
-            } catch (_: Exception) {
-                _speechError.value = "Voice recognition failed to start"
-                if (!_isAssistantMode.value) {
-                    _isListening.value = false
-                }
-            }
-        }
+        startAssistantMode()
     }
 
     fun stopListening() {
-        mainHandler.post {
-            try {
-                speechRecognizer?.stopListening()
-            } catch (_: Exception) {}
-            if (!_isAssistantMode.value) {
-                _isListening.value = false
-            }
-            _audioRmsLevel.value = 0f
-        }
+        stopAssistantMode()
     }
 
     fun startAssistantMode() {
         _isAssistantMode.value = true
         _isListening.value = true
         _speechError.value = null
+
+        // Start foreground service for background persistence on Android 6 - 17
+        AyraForegroundVoiceService.start(context)
+        routeAudioToSpeaker()
+
+        // Acquire WakeLock so CPU doesn't sleep during hands-free continuous listening
+        try {
+            val powerManager = context.getSystemService(Context.POWER_SERVICE) as? PowerManager
+            if (wakeLock == null && powerManager != null) {
+                wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "Ayra:AlwaysListeningWakeLock").apply {
+                    setReferenceCounted(false)
+                }
+            }
+            wakeLock?.acquire(60 * 60 * 1000L) // 1 hour safety window
+        } catch (_: Exception) {}
+
         mainHandler.removeCallbacksAndMessages(null)
         restartListeningInternal()
     }
@@ -393,7 +485,18 @@ class VoiceManager(private val context: Context) : TextToSpeech.OnInitListener {
         _isAssistantMode.value = false
         _isListening.value = false
         _audioRmsLevel.value = 0f
+        cancelResponseWatchdog()
         mainHandler.removeCallbacksAndMessages(null)
+
+        // Stop background foreground service
+        AyraForegroundVoiceService.stop(context)
+
+        try {
+            if (wakeLock?.isHeld == true) {
+                wakeLock?.release()
+            }
+        } catch (_: Exception) {}
+
         try {
             speechRecognizer?.cancel()
             speechRecognizer?.stopListening()
@@ -409,7 +512,7 @@ class VoiceManager(private val context: Context) : TextToSpeech.OnInitListener {
         }
     }
 
-    // Speaks text with natural human voice, loud volume boost, and multilingual pronunciation
+    // Speaks text with natural female girlfriend voice, loud volume boost, and multilingual pronunciation
     fun speak(
         text: String,
         pitch: Float = currentPitch,
@@ -418,11 +521,16 @@ class VoiceManager(private val context: Context) : TextToSpeech.OnInitListener {
     ) {
         if (!isTtsReady) return
 
-        // In continuous call mode, UI shows call is active
-        _isListening.value = true
+        cancelResponseWatchdog()
 
-        // Apply natural human pitch & rate (prevent artificial chipmunk/robotic voice)
-        currentPitch = pitch.coerceIn(0.92f, 1.10f)
+        // In continuous call mode, UI indicates call remains active
+        if (_isAssistantMode.value) {
+            _isListening.value = true
+        }
+        routeAudioToSpeaker()
+
+        // Apply natural sweet female pitch (1.18f - 1.35f, NEVER male pitch!)
+        currentPitch = if (pitch < 1.15f) 1.22f else pitch.coerceIn(1.15f, 1.38f)
         currentRate = rate.coerceIn(0.85f, 1.15f)
         tts?.setPitch(currentPitch)
         tts?.setSpeechRate(currentRate)
@@ -453,8 +561,7 @@ class VoiceManager(private val context: Context) : TextToSpeech.OnInitListener {
                 tts?.language = targetLocale
                 applyBestHumanVoice(targetLocale)
             } else {
-                tts?.language = Locale.getDefault()
-                applyBestHumanVoice(Locale.getDefault())
+                applyBestHumanVoice(tts?.language ?: Locale.getDefault())
             }
         } catch (_: Exception) {}
 
@@ -463,7 +570,7 @@ class VoiceManager(private val context: Context) : TextToSpeech.OnInitListener {
         if (cleanText.isBlank()) return
         lastSpokenText = cleanText
 
-        val utteranceId = "Aria_${System.currentTimeMillis()}"
+        val utteranceId = "Ayra_${System.currentTimeMillis()}"
         val params = Bundle().apply {
             putFloat(TextToSpeech.Engine.KEY_PARAM_VOLUME, volumeLevel.coerceIn(0.2f, 1.0f))
             putInt(TextToSpeech.Engine.KEY_PARAM_STREAM, AudioManager.STREAM_MUSIC)
@@ -513,12 +620,12 @@ class VoiceManager(private val context: Context) : TextToSpeech.OnInitListener {
                 if (_isAssistantMode.value) {
                     restartListeningInternal()
                 }
-            }, 100)
+            }, 80)
         }
     }
 
     fun updateVoiceSettings(pitch: Float, rate: Float, loudEnabled: Boolean = true, volumeLevel: Float = 1.0f) {
-        currentPitch = pitch.coerceIn(0.92f, 1.10f)
+        currentPitch = if (pitch < 1.15f) 1.22f else pitch.coerceIn(1.15f, 1.38f)
         currentRate = rate.coerceIn(0.85f, 1.15f)
         isLoudVoiceBoostEnabled = loudEnabled
         userVolumeLevel = volumeLevel
@@ -531,7 +638,13 @@ class VoiceManager(private val context: Context) : TextToSpeech.OnInitListener {
 
     fun destroy() {
         _isAssistantMode.value = false
+        cancelResponseWatchdog()
         mainHandler.removeCallbacksAndMessages(null)
+        try {
+            if (wakeLock?.isHeld == true) {
+                wakeLock?.release()
+            }
+        } catch (_: Exception) {}
         try {
             speechRecognizer?.destroy()
         } catch (_: Exception) {}

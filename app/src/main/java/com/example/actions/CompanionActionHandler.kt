@@ -120,7 +120,7 @@ class CompanionActionHandler(private val context: Context) {
     }
 
     fun shareInstagramStory(storyText: String): String {
-        val content = if (storyText.isNotBlank()) storyText else "Having the best day with Aria! ✨"
+        val content = if (storyText.isNotBlank()) storyText else "Having the best day with Ayra! ✨"
         val storyIntent = Intent("com.instagram.share.ADD_TO_STORY").apply {
             type = "text/plain"
             putExtra("story_text", content)
@@ -201,7 +201,7 @@ class CompanionActionHandler(private val context: Context) {
 
         val intent = Intent(AlarmClock.ACTION_SET_TIMER).apply {
             putExtra(AlarmClock.EXTRA_LENGTH, totalSeconds)
-            putExtra(AlarmClock.EXTRA_MESSAGE, "Timer set by Aria ❤️")
+            putExtra(AlarmClock.EXTRA_MESSAGE, "Timer set by Ayra ❤️")
             putExtra(AlarmClock.EXTRA_SKIP_UI, false)
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         }
@@ -215,16 +215,38 @@ class CompanionActionHandler(private val context: Context) {
     }
 
     fun openYouTube(query: String): String {
-        val url = if (query.isNotBlank()) {
-            "https://www.youtube.com/results?search_query=${URLEncoder.encode(query, "UTF-8")}"
+        val clean = query.trim()
+        val url = if (clean.isNotBlank()) {
+            "https://www.youtube.com/results?search_query=${URLEncoder.encode(clean, "UTF-8")}"
         } else {
             "https://www.youtube.com"
         }
+
+        val ytPackage = "com.google.android.youtube"
+        val isYtInstalled = try {
+            context.packageManager.getPackageInfo(ytPackage, 0)
+            true
+        } catch (_: Exception) {
+            false
+        }
+
         val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url)).apply {
+            if (isYtInstalled) {
+                setPackage(ytPackage)
+            }
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         }
-        context.startActivity(intent)
-        return if (query.isNotBlank()) "Playing '$query' on YouTube for you, darling! 🎵" else "Opening YouTube for you! 🎵"
+
+        return try {
+            context.startActivity(intent)
+            if (clean.isNotBlank()) "Playing '$clean' on YouTube for you, darling! 🎵📺" else "Opening YouTube for you! 🎵"
+        } catch (_: Exception) {
+            val fallbackIntent = Intent(Intent.ACTION_VIEW, Uri.parse(url)).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            context.startActivity(fallbackIntent)
+            if (clean.isNotBlank()) "Opening YouTube for '$clean'! 🎵" else "Opening YouTube in browser! 🎵"
+        }
     }
 
     fun searchWeb(query: String): String {
@@ -468,7 +490,7 @@ class CompanionActionHandler(private val context: Context) {
                     "hi" in lower -> "Hi there! ✨"
                     "good morning" in lower -> "Good morning! ☀️"
                     "good night" in lower -> "Good night! Sweet dreams 🌙"
-                    else -> extractQuotedOrTrailingText(text) ?: "Hello from Aria ❤️"
+                    else -> extractQuotedOrTrailingText(text) ?: "Hello from Ayra ❤️"
                 }
                 val contact = extractContactName(text)
                 return CompanionAction(
@@ -490,7 +512,7 @@ class CompanionActionHandler(private val context: Context) {
         // 2. Instagram Commands
         if ("instagram" in lower || "insta" in lower) {
             if ("story" in lower || "status" in lower || "post" in lower || "lagao" in lower || "share" in lower) {
-                val storyContent = extractQuotedOrTrailingText(text) ?: "My lovely day with Aria ❤️✨"
+                val storyContent = extractQuotedOrTrailingText(text) ?: "My lovely day with Ayra ❤️✨"
                 return CompanionAction(
                     type = ActionType.INSTAGRAM_STORY,
                     title = "Post Instagram Story",
@@ -583,13 +605,15 @@ class CompanionActionHandler(private val context: Context) {
             )
         }
 
-        // 8. YouTube / Music
-        if ("youtube" in lower || "play song" in lower || "gaana" in lower || "music" in lower) {
-            val query = text.replace(Regex("(?i)(play|song|on|youtube|gaana|bajao|chalao)"), "").trim()
+        // 8. YouTube & Media Playback Commands
+        if ("youtube" in lower || "play song" in lower || "gaana" in lower || "music" in lower || "video" in lower || "media" in lower) {
+            val query = text.replace(Regex("(?i)^(ayra|hey ayra|babu|darling)\\s+"), "")
+                .replace(Regex("(?i)(play|song|video|media|on|youtube|yt|gaana|bajao|chalao|par|pe)"), "")
+                .trim()
             return CompanionAction(
                 type = ActionType.OPEN_YOUTUBE,
                 title = "Play on YouTube",
-                description = "Searching YouTube for: ${query.ifBlank { "Romantic Music" }}",
+                description = "Searching YouTube for: ${query.ifBlank { "Trending music and videos" }}",
                 payload = query.ifBlank { "Romantic songs" }
             )
         }

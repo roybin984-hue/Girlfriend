@@ -187,7 +187,7 @@ fun ActionHubDialog(
                         }
                         Spacer(modifier = Modifier.width(10.dp))
                         Text(
-                            text = "Aria Action Hub",
+                            text = "Ayra Action Hub",
                             fontSize = 18.sp,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onSurface
@@ -200,7 +200,7 @@ fun ActionHubDialog(
 
                 Spacer(modifier = Modifier.height(6.dp))
                 Text(
-                    text = "Aria does what you ask! Tap any card to test directly or speak to her via voice mic! 🌸",
+                    text = "Ayra does what you ask! Tap any card to test directly or speak to her via voice mic! 🌸",
                     fontSize = 12.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )

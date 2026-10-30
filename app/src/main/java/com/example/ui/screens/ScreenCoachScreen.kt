@@ -155,7 +155,7 @@ fun ScreenCoachScreen(
                         Spacer(modifier = Modifier.width(12.dp))
                         Column {
                             Text(
-                                text = "Aria Game Coach & Screen Watcher",
+                                text = "Ayra Game Coach & Screen Watcher",
                                 fontWeight = FontWeight.ExtraBold,
                                 fontSize = 16.sp,
                                 color = MaterialTheme.colorScheme.onSurface
@@ -219,7 +219,7 @@ fun ScreenCoachScreen(
                             color = MaterialTheme.colorScheme.onSurface
                         )
                         Text(
-                            text = "Required so Aria can stay visible on screen while you play games or use WhatsApp!",
+                            text = "Required so Ayra can stay visible on screen while you play games or use WhatsApp!",
                             fontSize = 11.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -283,7 +283,7 @@ fun ScreenCoachScreen(
                             color = MaterialTheme.colorScheme.onSurface
                         )
                         Text(
-                            text = if (isOverlayActive) "Aria is watching your screen and games" else "Floats on top of games & WhatsApp",
+                            text = if (isOverlayActive) "Ayra is watching your screen and games" else "Floats on top of games & WhatsApp",
                             fontSize = 11.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -294,7 +294,7 @@ fun ScreenCoachScreen(
                     onClick = {
                         isOverlayActive = !isOverlayActive
                         val msg = if (isOverlayActive) {
-                            "Aria is now floating and watching your screen! Let's win this match, $userNickname! 🔥"
+                            "Ayra is now floating and watching your screen! Let's win this match, $userNickname! 🔥"
                         } else {
                             "Screen overlay paused."
                         }
@@ -367,7 +367,7 @@ fun ScreenCoachScreen(
 
         // Instant Live Tactical Advice Buttons
         Text(
-            text = "Ask Aria Tactical Game Tips",
+            text = "Ask Ayra Tactical Game Tips",
             fontWeight = FontWeight.Bold,
             fontSize = 14.sp,
             color = MaterialTheme.colorScheme.onSurface

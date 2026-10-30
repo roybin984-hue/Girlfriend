@@ -8,7 +8,7 @@ class CompanionPreferences(context: Context) {
         context.getSharedPreferences("aria_companion_prefs", Context.MODE_PRIVATE)
 
     var companionName: String
-        get() = prefs.getString("companion_name", "Aria") ?: "Aria"
+        get() = prefs.getString("companion_name", "Ayra") ?: "Ayra"
         set(value) = prefs.edit().putString("companion_name", value).apply()
 
     var userNickname: String
@@ -16,11 +16,14 @@ class CompanionPreferences(context: Context) {
         set(value) = prefs.edit().putString("user_nickname", value).apply()
 
     var voicePitch: Float
-        get() = prefs.getFloat("voice_pitch", 1.02f)
+        get() {
+            val stored = prefs.getFloat("voice_pitch", 1.22f)
+            return if (stored <= 1.10f) 1.22f else stored
+        }
         set(value) = prefs.edit().putFloat("voice_pitch", value).apply()
 
     var voiceSpeed: Float
-        get() = prefs.getFloat("voice_speed", 1.0f)
+        get() = prefs.getFloat("voice_speed", 0.98f)
         set(value) = prefs.edit().putFloat("voice_speed", value).apply()
 
     var voicePreset: String

@@ -54,11 +54,11 @@ data class ChatMessage(
 )
 
 data class VoiceProfile(
-    val pitch: Float = 1.02f, // 1.02 = natural human sweet girlfriend voice (not robotic)
-    val speed: Float = 1.0f,
+    val pitch: Float = 1.22f, // 1.22 = natural human sweet girlfriend female voice
+    val speed: Float = 0.98f,
     val personaName: String = "Sweet & Caring",
-    val description: String = "Loving, warm, natural human voice tone",
-    val languageCode: String = "en-US"
+    val description: String = "Loving, warm, natural female human voice tone",
+    val languageCode: String = "hi-IN"
 )
 
 enum class GirlfriendMood(val label: String, val emoji: String, val tonePrompt: String) {
@@ -69,14 +69,14 @@ enum class GirlfriendMood(val label: String, val emoji: String, val tonePrompt: 
 }
 
 data class CompanionProfile(
-    val name: String = "Aria",
+    val name: String = "Ayra",
     val userNickname: String = "Babe",
     val mood: GirlfriendMood = GirlfriendMood.LOVING,
     val relationshipLevel: Int = 1,
     val affectionXp: Int = 120,
     val autoSpeak: Boolean = true,
-    val voicePitch: Float = 1.02f,
-    val voiceSpeed: Float = 1.0f,
+    val voicePitch: Float = 1.22f, // Natural sweet female voice pitch
+    val voiceSpeed: Float = 0.98f,
     val voicePreset: String = "Natural Sweet ❤️",
     val loudVoiceEnabled: Boolean = true,
     val voiceVolumeLevel: Float = 1.0f

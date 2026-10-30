@@ -76,8 +76,6 @@ fun VoiceProfileScreen(
     var rate by remember(profile.voiceSpeed) { mutableFloatStateOf(profile.voiceSpeed) }
     var selectedPreset by remember(profile.voicePreset) { mutableStateOf(profile.voicePreset) }
     var autoSpeak by remember(profile.autoSpeak) { mutableStateOf(profile.autoSpeak) }
-    var loudVoiceEnabled by remember(profile.loudVoiceEnabled) { mutableStateOf(profile.loudVoiceEnabled) }
-    var voiceVolumeLevel by remember(profile.voiceVolumeLevel) { mutableFloatStateOf(profile.voiceVolumeLevel) }
     var apiKeyInput by remember(geminiApiKey) { mutableStateOf(geminiApiKey) }
     var adminTapCount by remember { mutableStateOf(0) }
 
@@ -111,7 +109,7 @@ fun VoiceProfileScreen(
                 ) {
                     Image(
                         painter = painterResource(id = R.drawable.img_anime_gf_live),
-                        contentDescription = "Aria Profile",
+                        contentDescription = "Ayra Profile",
                         contentScale = ContentScale.Crop,
                         modifier = Modifier.matchParentSize()
                     )
@@ -204,7 +202,7 @@ fun VoiceProfileScreen(
                                 if (preset.name.contains("Hinata")) name = "Hinata"
                                 else if (preset.name.contains("Sakura")) name = "Sakura"
                                 else if (preset.name.contains("Tsunade")) name = "Tsunade"
-                                else if (preset.name.contains("Aria")) name = "Aria"
+                                else if (preset.name.contains("Ayra") || preset.name.contains("Aria")) name = "Ayra"
                             },
                         shape = RoundedCornerShape(12.dp),
                         colors = CardDefaults.cardColors(
@@ -302,7 +300,7 @@ fun VoiceProfileScreen(
                             color = MaterialTheme.colorScheme.onSurface
                         )
                         Text(
-                            text = "Aria reads her replies with voice",
+                            text = "Ayra reads her replies with voice",
                             fontSize = 11.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -313,51 +311,6 @@ fun VoiceProfileScreen(
                         colors = SwitchDefaults.colors(checkedThumbColor = Color.White, checkedTrackColor = RosePrimary)
                     )
                 }
-
-                Spacer(modifier = Modifier.height(14.dp))
-
-                // Loud Voice Booster toggle (User requested: "voice loudly aana chahie")
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = "Loud Voice Booster 🔊",
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                        Text(
-                            text = "Speaker volume automatically boost karein taaki aawaz tez aur saaf aaye",
-                            fontSize = 11.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Switch(
-                        checked = loudVoiceEnabled,
-                        onCheckedChange = { loudVoiceEnabled = it },
-                        colors = SwitchDefaults.colors(checkedThumbColor = Color.White, checkedTrackColor = RosePrimary)
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(10.dp))
-
-                // Speech Volume Slider
-                Text(
-                    text = "Awaaz Ki Loudness (Volume): ${(voiceVolumeLevel * 100).toInt()}% 📢",
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-                Slider(
-                    value = voiceVolumeLevel,
-                    onValueChange = { voiceVolumeLevel = it },
-                    valueRange = 0.4f..1.0f,
-                    colors = SliderDefaults.colors(thumbColor = RosePrimary, activeTrackColor = RosePrimary)
-                )
             }
         }
 
@@ -473,14 +426,14 @@ fun VoiceProfileScreen(
             onClick = {
                 onSaveProfile(
                     profile.copy(
-                        name = name.ifBlank { "Aria" },
+                        name = name.ifBlank { "Ayra" },
                         userNickname = nickname.ifBlank { "Babe" },
                         voicePitch = pitch,
                         voiceSpeed = rate,
                         voicePreset = selectedPreset,
                         autoSpeak = autoSpeak,
-                        loudVoiceEnabled = loudVoiceEnabled,
-                        voiceVolumeLevel = voiceVolumeLevel
+                        loudVoiceEnabled = true,
+                        voiceVolumeLevel = 1.0f
                     )
                 )
             },
@@ -498,7 +451,7 @@ fun VoiceProfileScreen(
 
         // Hidden Admin Panel Access: Secret 5-tap on version label (completely hidden from normal users)
         Text(
-            text = "Aria AI Girlfriend • Version 1.0.0",
+            text = "Ayra AI Assistant • Version 1.0.0",
             fontSize = 12.sp,
             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
             modifier = Modifier

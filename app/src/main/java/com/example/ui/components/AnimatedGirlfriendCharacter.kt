@@ -20,7 +20,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -29,18 +28,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.example.R
-import com.example.ui.theme.HeartRed
 import com.example.ui.theme.RosePrimary
-import com.example.ui.theme.RoseSecondary
 
 @Composable
 fun AnimatedGirlfriendCharacter(
@@ -48,71 +43,76 @@ fun AnimatedGirlfriendCharacter(
     isListening: Boolean,
     onCharacterTouch: () -> Unit,
     modifier: Modifier = Modifier,
-    characterName: String = "Aria",
+    characterName: String = "Ayra",
     customImageRes: Int? = null
 ) {
     val infiniteTransition = rememberInfiniteTransition(label = "anime_character_physics")
 
-    // 1. Natural Breathing Motion
-    val breathScaleY by infiniteTransition.animateFloat(
+    // 1. Natural subtle idle breathing (Active only when NOT speaking to avoid any neck/body displacement)
+    val idleBreathScaleY by infiniteTransition.animateFloat(
         initialValue = 1.0f,
-        targetValue = 1.026f,
+        targetValue = 1.018f,
         animationSpec = infiniteRepeatable(
-            animation = tween(2400, easing = FastOutSlowInEasing),
+            animation = tween(2800, easing = FastOutSlowInEasing),
             repeatMode = RepeatMode.Reverse
         ),
         label = "breath_scale"
     )
 
-    // 2. Gentle Natural Body Swaying & Head Tilt
-    val bodyTiltAngle by infiniteTransition.animateFloat(
-        initialValue = -1.6f,
-        targetValue = 1.6f,
+    // 2. Gentle natural idle sway (Active only when idle - locked during speech to prevent rigging drift)
+    val idleBodyTilt by infiniteTransition.animateFloat(
+        initialValue = -0.8f,
+        targetValue = 0.8f,
         animationSpec = infiniteRepeatable(
-            animation = tween(3400, easing = FastOutSlowInEasing),
+            animation = tween(3600, easing = FastOutSlowInEasing),
             repeatMode = RepeatMode.Reverse
         ),
         label = "body_tilt"
     )
 
-    val bodySwayX by infiniteTransition.animateFloat(
-        initialValue = -4f,
-        targetValue = 4f,
+    val idleBodySwayX by infiniteTransition.animateFloat(
+        initialValue = -2.5f,
+        targetValue = 2.5f,
         animationSpec = infiniteRepeatable(
-            animation = tween(3000, easing = FastOutSlowInEasing),
+            animation = tween(3200, easing = FastOutSlowInEasing),
             repeatMode = RepeatMode.Reverse
         ),
         label = "body_sway_x"
     )
 
-    // 3. Real-time Talking Mouth / Lip-Sync Movement
-    // Rapid vertical open-close motion synced to conversational speech tempo (~135ms per cycle)
+    // Strict alignment: When speaking, lock neck and body coordinates to 0 displacement
+    val activeBodyTilt = if (isSpeaking) 0f else idleBodyTilt
+    val activeBodySwayX = if (isSpeaking) 0f else idleBodySwayX
+    val activeBreathScaleY = if (isSpeaking) 1.0f else idleBreathScaleY
+
+    // 3. Precise real-time lip-sync mouth animation strictly synced to spoken output
+    // Speech phoneme cadence: rapid alternating visemes (~120ms cycle)
     val mouthOpeningHeight by infiniteTransition.animateFloat(
-        initialValue = 3f,
-        targetValue = 14f,
+        initialValue = 2.5f,
+        targetValue = 13.5f,
         animationSpec = infiniteRepeatable(
-            animation = tween(135, easing = LinearEasing),
+            animation = tween(125, easing = LinearEasing),
             repeatMode = RepeatMode.Reverse
         ),
         label = "mouth_height"
     )
 
     val mouthOpeningWidth by infiniteTransition.animateFloat(
-        initialValue = 20f,
-        targetValue = 26f,
+        initialValue = 19f,
+        targetValue = 25.5f,
         animationSpec = infiniteRepeatable(
-            animation = tween(180, easing = LinearEasing),
+            animation = tween(165, easing = LinearEasing),
             repeatMode = RepeatMode.Reverse
         ),
         label = "mouth_width"
     )
 
-    // 4. Subtle Blushing / Glowing Pulse when speaking
+    // 4. Subtle, warm facial blushing when speaking
     val blushAlpha by infiniteTransition.animateFloat(
-        initialValue = 0.2f,
-        targetValue = 0.5f,
+        initialValue = 0.22f,
+        targetValue = 0.48f,
         animationSpec = infiniteRepeatable(
-            animation = tween(1200, easing = FastOutSlowInEasing),
+            animation = tween(1100, easing = FastOutSlowInEasing),
             repeatMode = RepeatMode.Reverse
         ),
         label = "blush_pulse"
@@ -130,16 +130,15 @@ fun AnimatedGirlfriendCharacter(
         contentAlignment = Alignment.Center
     ) {
         val screenHeight = maxHeight
-        val screenWidth = maxWidth
 
-        // Main Character Canvas with natural swaying & breathing
+        // Main Character Canvas: Anchored without neck/body rigging displacement
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .graphicsLayer {
-                    rotationZ = bodyTiltAngle
-                    translationX = bodySwayX
-                    scaleY = breathScaleY
+                    rotationZ = activeBodyTilt
+                    translationX = activeBodySwayX
+                    scaleY = activeBreathScaleY
                 },
             contentAlignment = Alignment.Center
         ) {
@@ -149,17 +148,17 @@ fun AnimatedGirlfriendCharacter(
                 R.drawable.img_anime_gf_live
             }
 
-            // Anime Character Image
+            // High-Resolution Character Portrait
             Image(
                 painter = painterResource(id = imageRes),
-                contentDescription = "$characterName Anime Character",
+                contentDescription = "$characterName Avatar",
                 contentScale = ContentScale.Crop,
                 modifier = Modifier.fillMaxSize()
             )
 
-            // Realistic Lip-Sync Moving Mouth ("Hot") when speaking
+            // Precise Lip-Sync Avatar Mouth (Strictly active only when speaking)
+            // Centered over character mouth coordinates without neck or body distortion
             if (isSpeaking) {
-                // Centered right over the mouth area of img_anime_gf_live (around 44% of vertical height)
                 Box(
                     modifier = Modifier
                         .align(Alignment.TopCenter)
@@ -173,45 +172,32 @@ fun AnimatedGirlfriendCharacter(
                         .background(
                             Brush.verticalGradient(
                                 colors = listOf(
-                                    Color(0xFFE57373), // Upper lip pink
-                                    Color(0xFF7A1C28), // Inner mouth depth
-                                    Color(0xFFFF8A80)  // Lower lip highlight
+                                    Color(0xFFE57373), // Natural upper lip
+                                    Color(0xFF5D101E), // Oral cavity depth
+                                    Color(0xFFFF8A80)  // Soft lower lip highlight
                                 )
                             )
                         )
                         .border(
                             width = 1.dp,
-                            color = Color(0xFFC2185B).copy(alpha = 0.6f),
+                            color = Color(0xFFC2185B).copy(alpha = 0.55f),
                             shape = RoundedCornerShape(percent = 50)
                         )
                 ) {
-                    // Small natural teeth hint inside mouth when wide open
-                    if (mouthOpeningHeight > 8f) {
+                    // Delicate upper teeth hint on open vowel phonemes
+                    if (mouthOpeningHeight > 7f) {
                         Box(
                             modifier = Modifier
                                 .align(Alignment.TopCenter)
-                                .width(mouthOpeningWidth.dp * 0.6f)
-                                .height(2.5.dp)
+                                .width(mouthOpeningWidth.dp * 0.58f)
+                                .height(2.dp)
                                 .clip(RoundedCornerShape(bottomStart = 2.dp, bottomEnd = 2.dp))
-                                .background(Color(0xFFFFF9F9).copy(alpha = 0.9f))
+                                .background(Color(0xFFFFFBFB).copy(alpha = 0.92f))
                         )
                     }
                 }
 
-                // Throat / Neck vocal resonance vibration when speaking
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.TopCenter)
-                        .offset(x = 0.dp, y = screenHeight * 0.485f)
-                        .width(20.dp)
-                        .height(8.dp)
-                        .clip(RoundedCornerShape(4.dp))
-                        .background(
-                            Color(0xFFFF8A80).copy(alpha = (mouthOpeningHeight / 28f).coerceIn(0.08f, 0.32f))
-                        )
-                )
-
-                // Cute Rosy Blushing Cheek Glow
+                // Natural, subtle cheek warmth
                 Box(
                     modifier = Modifier
                         .align(Alignment.TopCenter)
@@ -238,16 +224,16 @@ fun AnimatedGirlfriendCharacter(
                 )
             }
 
-            // Vignette Shadow at top and bottom for UI contrast
+            // Cinematic Vignette Gradient for readability
             Box(
                 modifier = Modifier
                     .fillMaxSize()
                     .background(
                         Brush.verticalGradient(
                             colors = listOf(
-                                Color.Black.copy(alpha = 0.55f),
+                                Color.Black.copy(alpha = 0.5f),
                                 Color.Transparent,
-                                Color.Black.copy(alpha = 0.88f)
+                                Color.Black.copy(alpha = 0.85f)
                             )
                         )
                     )

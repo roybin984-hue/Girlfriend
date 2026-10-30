@@ -1,6 +1,6 @@
 {
-  "name": "Aria AI",
-  "description": "Your sweet, caring AI girlfriend companion who talks with voice, listens, chats in any language, and helps you open WhatsApp, send messages, post Instagram stories, and manage your day.",
+  "name": "Ayra AI",
+  "description": "Always-listening AI assistant Ayra with continuous microphone streaming, pulsing heartbeat indicator, background persistence, and seamless YouTube/app control.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

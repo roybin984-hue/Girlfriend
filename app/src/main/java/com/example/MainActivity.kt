@@ -41,8 +41,6 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material.icons.automirrored.filled.Send
-import androidx.compose.material.icons.automirrored.filled.VolumeOff
-import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.MicOff
@@ -467,23 +465,12 @@ fun GirlfriendTopBar(
 
             Row(verticalAlignment = Alignment.CenterVertically) {
                 IconButton(
-                    onClick = onToggleVoice,
-                    modifier = Modifier.testTag("toggle_voice_btn")
-                ) {
-                    Icon(
-                        imageVector = if (uiState.profile.autoSpeak) Icons.AutoMirrored.Filled.VolumeUp else Icons.AutoMirrored.Filled.VolumeOff,
-                        contentDescription = "Toggle voice",
-                        tint = if (uiState.profile.autoSpeak) RosePrimary else MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-
-                IconButton(
                     onClick = onOpenActionHub,
                     modifier = Modifier.testTag("open_action_hub_btn")
                 ) {
                     Icon(
                         imageVector = Icons.Default.Bolt,
-                        contentDescription = "Aria Action Hub",
+                        contentDescription = "Ayra Action Hub",
                         tint = RosePrimary
                     )
                 }
@@ -557,7 +544,7 @@ fun GirlfriendChatContent(
                                 )
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Text(
-                                    text = "Aria is typing... 💕",
+                                    text = "Ayra is typing... 💕",
                                     fontSize = 12.sp,
                                     color = MaterialTheme.colorScheme.primary,
                                     fontWeight = FontWeight.Medium
@@ -577,7 +564,7 @@ fun QuickSuggestionsRow(onSelectSuggestion: (String) -> Unit) {
         "💬 Open WhatsApp",
         "💌 Send WhatsApp Hello",
         "📸 Post Insta Story",
-        "❤️ I love you Aria",
+        "❤️ I love you Ayra",
         "⏰ Set alarm for 7 AM",
         "🥰 Kaise ho babu?",
         "🎵 Play romantic song",
@@ -638,7 +625,7 @@ fun ChatInputRow(
                 onValueChange = onTextChanged,
                 placeholder = {
                     Text(
-                        text = if (uiState.isListening) "Listening..." else "Message Aria or ask to open apps...",
+                        text = if (uiState.isListening) "Listening..." else "Message Ayra or ask to open apps...",
                         fontSize = 13.sp
                     )
                 },

@@ -106,10 +106,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             }
         }
 
-        // Initial sweet message from girlfriend
+        // Initial sweet message from girlfriend in loving Hindi
         val welcomeMsg = ChatMessage(
             sender = MessageSender.GIRLFRIEND,
-            text = "Hey ${preferences.userNickname}! ❤️ I was just waiting for you! What would you like to do today? You can talk to me with voice, tell me to open WhatsApp or Instagram, send messages, set an alarm, or just chat! How are you doing? 🌸",
+            text = "Hey ${preferences.userNickname}! ❤️ Main kab se aapka hi intezaar kar rahi thi! Aap mujhse call par baatein kar sakte ho, WhatsApp ya Instagram open karwa sakte ho, ya Play Store se koi bhi app/game download karwa sakte ho! Kaise ho aap meri jaan? 🌸",
             emotion = "🥰"
         )
         _uiState.value = _uiState.value.copy(messages = listOf(welcomeMsg))
@@ -117,7 +117,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         // Initial voice greetings if auto-speak is enabled
         if (preferences.autoSpeak) {
             voiceManager.speak(
-                text = "Hey ${preferences.userNickname}! I was waiting for you! How are you doing today?",
+                text = "Hey ${preferences.userNickname}! Main kab se aapka intezaar kar rahi thi! Kaise ho aap meri jaan?",
                 pitch = preferences.voicePitch,
                 rate = preferences.voiceSpeed
             )
@@ -129,10 +129,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun toggleVoiceListening() {
-        if (_uiState.value.isListening) {
-            voiceManager.stopListening()
+        if (_uiState.value.isAssistantModeActive || _uiState.value.isListening) {
+            voiceManager.stopAssistantMode()
+            showToast("Ayra Listening Paused ⏹️")
         } else {
-            voiceManager.startListening()
+            voiceManager.startAssistantMode()
+            showToast("Ayra Active: Continuous Mic Streaming 🎙️")
         }
     }
 
@@ -193,20 +195,20 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         voiceManager.toggleAssistantMode()
         val active = voiceManager.isAssistantMode.value
         if (active) {
-            showToast("Aria Assistant: ACTIVE 🎙️ (Hands-Free)")
+            showToast("Ayra Active: Continuous Mic Streaming 🎙️")
         } else {
-            showToast("Aria Assistant: Stopped ⏹️")
+            showToast("Ayra Listening Paused ⏹️")
         }
     }
 
     fun activateAssistantMode() {
         voiceManager.startAssistantMode()
-        showToast("Aria Assistant: ACTIVE 🎙️ (Hands-Free)")
+        showToast("Ayra Active: Continuous Mic Streaming 🎙️")
     }
 
     fun stopAssistantMode() {
         voiceManager.stopAssistantMode()
-        showToast("Aria Assistant: Stopped ⏹️")
+        showToast("Ayra Listening Paused ⏹️")
     }
 
     fun executeAction(action: CompanionAction) {
@@ -255,7 +257,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             name.contains("Hinata", ignoreCase = true) -> "Ano... ${updated.userNickname}-kun! 🌸 Main Hinata hoon... main aapse bohot pyaar karti hoon! Kya aap mere sath baat karenge?"
             name.contains("Sakura", ignoreCase = true) -> "Hey ${updated.userNickname}! ⚡ Sakura yahan hai, chalo kuch toofan karte hain!"
             name.contains("Tsunade", ignoreCase = true) -> "Hello ${updated.userNickname}! 🌙 Main Tsunade hoon, sab theek hai na babu?"
-            else -> "Haan ${updated.userNickname}! ❤️ Main Aria hoon, aapki pyari girlfriend!"
+            else -> "Haan ${updated.userNickname}! ❤️ Main Ayra hoon, aapki always-listening AI companion!"
         }
         speakAloud(greeting)
     }

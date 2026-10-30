@@ -63,12 +63,12 @@ data class VoicePreset(
 )
 
 val PRESET_VOICES = listOf(
-    VoicePreset("Hinata Hyūga 🌸 (Naruto Anime)", 1.08f, 0.94f, "🌸", "Soft, shy, sweet anime waifu voice ('Babu... Naruto-kun!')"),
-    VoicePreset("Natural Sweet ❤️ (Real Human Voice)", 1.02f, 1.0f, "🥰", "Natural warm human girl voice (zero robotic feel)"),
-    VoicePreset("Aria Girlfriend 💖 (Hindi Romance)", 1.04f, 1.0f, "💖", "Sweet, loving, clear Hindi/Hinglish girlfriend"),
-    VoicePreset("Sakura Haruno ⚡ (Naruto Anime)", 1.06f, 1.04f, "⚡", "Energetic, spirited anime heroine voice"),
-    VoicePreset("Tsunade Onee-san 🌙 (Naruto Anime)", 0.98f, 0.95f, "🌙", "Mature, caring, protective companion voice"),
-    VoicePreset("Gentle & Soothing 🌺", 1.01f, 0.95f, "🌺", "Soft, soothing, emotional human tone")
+    VoicePreset("Hinata Hyūga 🌸 (Naruto Anime)", 1.28f, 0.94f, "🌸", "Soft, shy, sweet anime waifu voice ('Babu... Naruto-kun!')"),
+    VoicePreset("Natural Sweet ❤️ (Real Human Voice)", 1.22f, 0.98f, "🥰", "Natural warm human girl voice (zero robotic feel)"),
+    VoicePreset("Ayra Assistant 💖 (Always-Listening Sweet)", 1.24f, 1.0f, "💖", "Sweet, loving, clear Hindi/Hinglish always-listening assistant"),
+    VoicePreset("Sakura Haruno ⚡ (Naruto Anime)", 1.26f, 1.02f, "⚡", "Energetic, spirited anime heroine voice"),
+    VoicePreset("Tsunade Onee-san 🌙 (Naruto Anime)", 1.18f, 0.96f, "🌙", "Mature, caring, protective companion voice"),
+    VoicePreset("Gentle & Soothing 🌺", 1.21f, 0.95f, "🌺", "Soft, soothing, emotional human tone")
 )
 
 @Composable
@@ -268,7 +268,7 @@ fun VoiceSettingsDialog(
                             color = MaterialTheme.colorScheme.onSurface
                         )
                         Text(
-                            text = "Aria reads her replies aloud with voice",
+                            text = "Ayra reads her replies aloud with voice",
                             fontSize = 11.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -310,7 +310,7 @@ fun VoiceSettingsDialog(
                     onClick = {
                         onSaveProfile(
                             profile.copy(
-                                name = name.ifBlank { "Aria" },
+                                name = name.ifBlank { "Ayra" },
                                 userNickname = nickname.ifBlank { "Babe" },
                                 voicePitch = pitch,
                                 voiceSpeed = rate,

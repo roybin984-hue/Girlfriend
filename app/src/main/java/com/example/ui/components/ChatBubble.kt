@@ -91,7 +91,7 @@ fun ChatBubble(
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             Text(
-                                text = "Aria ${message.emotion}",
+                                text = "Ayra ${message.emotion}",
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.primary
